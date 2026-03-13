@@ -1,0 +1,195 @@
+---
+title: "sdmTMB lab: model comparison and selection"
+format: html
+editor: visual
+---
+
+In this document, we'll step through model comparison workflows in `sdmTMB`. We'll discuss including smooth effects and how to visualize them, a couple of approaches for comparing models, and also how to do Bayesian inference with `sdmTMB` and `tmbstan`.
+
+### Packages and data
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sf)
+library(sdmTMB)
+library(here)
+library(INLA) #
+library(gstat) #
+library(mgcv) 
+library(sp)
+library(DHARMa) #
+library(ggeffects)
+library(tmbstan)
+library(sdmTMBextra) #remotes::install_github("pbs-assess/sdmTMBextra", dependencies = TRUE)
+
+# load processed data from R/data_processing_and_visualization
+load(here::here("data/processed_hair_crab_data.rdata"))
+
+# load hair crab data (includes design-based index)
+load(here::here("data/hair_cpue.rdata"))
+
+# source helper functions
+source(here::here("R/helpers.R"))
+
+# Convert sf to data.frame for use with sdmTMB
+hair_cpue <- 
+  hair_cpue_sf_filt %>% 
+    sfc_as_cols(., names = c("longitude", "latitude")) %>% # turn points into lat/lon columns
+    st_set_geometry(NULL) %>% #convert to data.frame
+  filter(year >= 2014) %>% 
+  mutate(district = factor(district),
+         yf = factor(year),
+         depth = as.numeric(scale(bottom_depth)))
+
+# CRS
+ak_crs <- "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +datum=NAD83 +units=km +no_defs"
+
+# mesh used in index standardization analysis
+sdmTMB_mesh2 <- make_mesh(hair_cpue, c("longitude", "latitude"), 
+                          n_knots = 150, type = "kmeans")
+```
+
+### Model fitting
+
+In the previous analysis we identified a well-fitting model that was effective for the purpose of developing an abundance index. However, we did not evaluate the goodness of fit of that model relative to other potential models.
+
+We will explore how to compare models here. Imagine that instead of index standardization we were specifically interested in understanding the preferred depth of hair crab.
+
+We model hair crab CPUE as a smooth function of depth, in addition to the inclusion of a spatial random field, a random effect for year, and anisotropy.
+
+We compare this model with one that also includes estimates district-specific ("N EBS/NBS", "BB", and "PRIB") intercepts.
+
+To make the models fit, we include `m = 1` in the smooth term, where `m` is the order of penalized derivatives (usually m = 2 for TPRS). In this case, setting m = 1 has the practical impact of preventing smooth predictions of CPUE from having enormous uncertainty for the deepest bottom depths. Additionally, we limit the number of basis functions included in `m2` to 5. This simplification prevents `sanity` errors.
+
+```{r}
+m2 <- sdmTMB::sdmTMB(
+        formula = cpue ~ (1|yf) + s(bottom_depth, m = 1, k = 5),
+        spatial = "on",
+        anisotropy = TRUE,
+        mesh = sdmTMB_mesh2,
+        family = tweedie(link = "log"),
+    data = hair_cpue)
+
+# sanity check
+sanity(m2)
+
+set.seed(67)
+r2 <- residuals(m2, type = "mle-mvn")
+qqnorm(r2);abline(0, 1)
+```
+
+We might suspect that a better model would include varying intercepts by district,
+
+```{r}
+m3 <- sdmTMB::sdmTMB(
+        formula = cpue ~ (1|yf) + s(bottom_depth, m = 1) + district,
+        spatial = "on",
+        anisotropy = TRUE,
+        mesh = sdmTMB_mesh2,
+        family = tweedie(link = "log"),
+    data = hair_cpue)
+
+# sanity check
+sanity(m3)
+
+set.seed(67)
+r3 <- residuals(m3, type = "mle-mvn")
+qqnorm(r3);abline(0, 1)
+```
+
+Both models pass sanity checks. The model `m3` has slightly uglier residuals on the qq-plot.
+
+Let's examine what the marginal smooths for depth look like prior to model comparison.
+
+### Visualizing smooth effects
+
+```{r}
+ggpredict(m2, terms = c("bottom_depth")) %>% plot()
+ggpredict(m3, terms = c("bottom_depth", "district")) %>% plot()
+```
+
+### Model comparisons
+
+Our first comparison is to look at conditional AICs between these two models. ?sdmTMB::cAIC states "cAIC is designed to optimize the expected out-of-sample predictive performance for new data that share the same random effects as the in-sample (fitted) data, e.g., spatial interpolation. In this sense, it should be a fast approximation to optimizing the model structure based on k-fold cross-validation."
+
+```{r}
+cAIC(m2)
+cAIC(m3)
+
+AIC(m2, m3)
+```
+
+cAIC and AIC values support the inclusion of `district` for improving interpolation (cAIC) and extrapolation/inference performance (AIC).
+
+`sdmTMB` provides several cross-validation methods that allow for comparing model prediction skill. The out-of-the-box method drops a chunk (i.e. a "fold") of data, re-fits the model without it, and predicts on the left out data. You can specify the number of folds with `k_folds`.
+
+```{r}
+process <- TRUE
+if (process){
+  m_2_cv <- 
+    sdmTMB::sdmTMB_cv(
+          k_folds = 8,
+          formula = cpue ~ (1|yf) + s(bottom_depth, m = 1, k = 5),
+          spatial = "on",
+          anisotropy = TRUE,
+          mesh = sdmTMB_mesh2,
+          family = tweedie(link = "log"),
+          data = hair_cpue)
+  
+  m_3_cv <- 
+   sdmTMB::sdmTMB_cv(
+          k_folds = 8,
+          formula = cpue ~ (1|yf) + s(bottom_depth, m = 1) + district,
+          spatial = "on",
+          anisotropy = TRUE,
+          mesh = sdmTMB_mesh2,
+          family = tweedie(link = "log"),
+          data = hair_cpue)
+  
+  save(m_2_cv, m_3_cv, file = here::here("data/model_cross_val_results.rdata"))
+} else {
+  load(here::here("data/model_cross_val_results.rdata"))
+}
+
+
+m_2_cv$sum_loglik
+mean(abs(m_2_cv$data$cpue - m_2_cv$data$cv_predicted)) #mean absolute error
+
+m_3_cv$sum_loglik # more positive is better
+mean(abs(m_3_cv$data$cpue - m_3_cv$data$cv_predicted)) #mean absolute error
+```
+
+Cross validation suggests there is very little additional predictive skill to be had through the inclusion of `district`
+
+### Bayesian inference on parameters
+
+The most straightforward way to evaluate hypotheses for sdmTMB models is to fit the model in a Bayesian context. To do this, we simply flag `bayesian = TRUE` in the sdmTMB model fit and pass the model object to `tmbstan`.
+
+In this case, we did not specify priors for the model so they are implied uniform. Visit https://sdmtmb.github.io/sdmTMB/articles/bayesian.html for much more detail on fitting `sdmTMB` models in `tmbstan`.
+
+```{r}
+m3_b <- sdmTMB::sdmTMB(
+          formula = cpue ~ 0 + (1|yf) + s(bottom_depth, m = 1) + district,
+          spatial = "on",
+          # anisotropy = TRUE,
+          mesh = sdmTMB_mesh2,
+          family = tweedie(link = "log"),
+          bayesian = TRUE,
+          data = hair_cpue)
+
+tidy(m3_b)
+tidy(m3_b, effects = "ran_vals")
+
+# sanity check
+sanity(m3_b)
+
+fit_stan <- tmbstan::tmbstan(
+  m3_b$tmb_obj,
+  control=list(max_treedepth=12),
+  iter = 1500, 
+  chains = 4,
+  seed = 6551
+)
+
+plot(fit_stan)
+```

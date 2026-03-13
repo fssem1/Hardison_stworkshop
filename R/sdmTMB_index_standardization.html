@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.42">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>sdmTMB lab: index standardization</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="sdmTMB_index_standardization_files/libs/clipboard/clipboard.min.js"></script>
+<script src="sdmTMB_index_standardization_files/libs/quarto-html/quarto.js"></script>
+<script src="sdmTMB_index_standardization_files/libs/quarto-html/popper.min.js"></script>
+<script src="sdmTMB_index_standardization_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="sdmTMB_index_standardization_files/libs/quarto-html/anchor.min.js"></script>
+<link href="sdmTMB_index_standardization_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="sdmTMB_index_standardization_files/libs/quarto-html/quarto-syntax-highlighting-2f5df379a58b258e96c21c0638c20c03.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="sdmTMB_index_standardization_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="sdmTMB_index_standardization_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="sdmTMB_index_standardization_files/libs/bootstrap/bootstrap-1bc8a17f135ab3d594c857e9f48e611b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">sdmTMB lab: index standardization</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>In this document, we’ll work through common modeling workflows for ecologists and fisheries scientists using <code>sdmTMB</code> to do index standardization.</p>
+<p>Along the way, we’ll discuss model validation and residual checks, results visualization, and explore how tweaking model parameters impacts outcomes.</p>
+<section id="packages-and-data" class="level3">
+<h3 class="anchored" data-anchor-id="packages-and-data">Packages and data</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sdmTMB)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(here)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(INLA) <span class="co">#</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(gstat) <span class="co">#</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(mgcv) </span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sp)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(DHARMa) <span class="co">#</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sdmTMBextra) <span class="co">#remotes::install_github("pbs-assess/sdmTMBextra", dependencies = TRUE)</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># load processed data from R/data_processing_and_visualization</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/processed_hair_crab_data.rdata"</span>))</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># load hair crab data (includes design-based index)</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/hair_cpue.rdata"</span>))</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># source helper functions</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"R/helpers.R"</span>))</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert sf to data.frame for use with sdmTMB</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>hair_cpue <span class="ot">&lt;-</span> </span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>  hair_cpue_sf_filt <span class="sc">%&gt;%</span> </span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> <span class="co"># turn points into lat/lon columns</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> <span class="co">#convert to data.frame</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> <span class="dv">2014</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">district =</span> <span class="fu">factor</span>(district))</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co"># CRS</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>ak_crs <span class="ot">&lt;-</span> <span class="st">"+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +datum=NAD83 +units=km +no_defs"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="mesh-creation" class="level3">
+<h3 class="anchored" data-anchor-id="mesh-creation">Mesh creation</h3>
+<section id="different-approaches-for-mesh-creation" class="level4">
+<h4 class="anchored" data-anchor-id="different-approaches-for-mesh-creation">Different approaches for mesh creation</h4>
+<p><code>sdmTMB</code> internal functions will build a mesh for you if you’d like, although these functions still require user input and optimization. An alternative approach is to build the mesh yourself using functions from <code>INLA</code>. We will demonstrate the custom approach first so that you are familiar with the language associated with meshes.</p>
+</section>
+<section id="building-a-custom-mesh-with-inla" class="level4">
+<h4 class="anchored" data-anchor-id="building-a-custom-mesh-with-inla">Building a custom mesh with INLA</h4>
+<p>The <code>inla.mesh.2d</code> function is used to build the mesh, and selecting the parameters that govern mesh structure requires trial and error. The steps I describe here are based on those outlined in Zuur et al.&nbsp;2017, Chapter 12 and Zuur et al.&nbsp;2018, Chapter 19, <a href="https://rpubs.com/jafet089/886687" class="uri">https://rpubs.com/jafet089/886687</a>, and <a href="https://haakonbakkagit.github.io/btopic104.html" class="uri">https://haakonbakkagit.github.io/btopic104.html</a>.</p>
+<ol type="1">
+<li>Estimate a rough spatial range at which residual spatial autocorrelation diminishes. We do this by fitting a Tweedie GLM and then evaluating the distance among scaled residuals at which spatial correlations decline.</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fit a Tweedie GLM (ignore spatial autocorrelation)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>tw_mod <span class="ot">&lt;-</span> <span class="fu">sdmTMB</span>(cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year), </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                 <span class="at">data =</span> hair_cpue, </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                 <span class="at">spatial =</span> <span class="st">"off"</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>                 <span class="at">family =</span> <span class="fu">tweedie</span>())</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># DHARMa residuals</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>resid_sim_tw_mod <span class="ot">&lt;-</span> <span class="fu">simulate</span>(tw_mod, <span class="at">nsim =</span> <span class="dv">500</span>, <span class="at">type =</span> <span class="st">"mle-mvn"</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>resid_dharm_tw_mod <span class="ot">&lt;-</span> <span class="fu">dharma_residuals</span>(resid_sim_tw_mod, tw_mod, <span class="at">return_DHARMa =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>hair_cpue<span class="sc">$</span>tw_mod_resids <span class="ot">&lt;-</span> resid_dharm_tw_mod<span class="sc">$</span>scaledResiduals</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot sample variogram for scaled residuals</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>gg_out <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year)){</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  hair_cpue_yr <span class="ot">&lt;-</span> hair_cpue  <span class="sc">%&gt;%</span> </span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(year <span class="sc">==</span> i) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>()</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  sp<span class="sc">::</span><span class="fu">coordinates</span>(hair_cpue_yr) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>) </span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  v1 <span class="ot">&lt;-</span> gstat<span class="sc">::</span><span class="fu">variogram</span>(tw_mod_resids <span class="sc">~</span> <span class="dv">1</span>, </span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>                      hair_cpue_yr)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">assign</span>(<span class="st">"gg_out"</span>, <span class="fu">rbind</span>(<span class="fu">tibble</span>(<span class="at">distance =</span> v1<span class="sc">$</span>dist, </span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>                                <span class="at">Semivariance =</span> v1<span class="sc">$</span>gamma,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>                                <span class="at">year =</span> i),</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>                         gg_out))</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>rough_range <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="at">data =</span> gg_out, <span class="fu">aes</span>(<span class="at">y =</span> Semivariance, </span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>                                <span class="at">x =</span> distance, <span class="at">color =</span> year)) <span class="sc">+</span> </span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_smooth</span>() <span class="sc">+</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> rough_range) <span class="sc">+</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Distance (km)"</span>) <span class="sc">+</span> </span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>year, <span class="at">scales =</span> <span class="st">"free_y"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Here we use sample variograms to visualize how residual spatial autocorrelation changes with distance. If residual spatial autocorrelation is isotropic, then we would expect to see semivariance consistently increase and plateau where residuals are no longer well correlated.</p>
+<p>The deviations from our expectations about semivariance shown here may be related to the fact that hair crab are patchily distributed in the Eastern Bering Sea. For now, we will pick a spatial range of 100 km for developing the mesh.</p>
+<ol start="2" type="1">
+<li><p>We next specify the spatial domain by passing sampling coordinates to the <code>loc.domain</code> argument. This creates a concave hull around the sampling locations.</p></li>
+<li><p>We then address mesh resolution using <code>max.edge</code>. This sets the maximum length of edges within the inner mesh. The maximum edge length for the outer boundary is set by adding a second value to this argument. Guidance from an INLA developer suggests that <code>max.edge</code> should be between 1/10 and 1/5 of the spatial range (<a href="https://rpubs.com/jafet089/886687" class="uri">https://rpubs.com/jafet089/886687</a>) as a starting point. We will use a slightly coarser value in favor of estimation speed.</p>
+<p>The outer boundary serves the purpose of minimizing edge effects (large variance in vertex weights). The extent of the outer boundary is set by the <code>offset</code> argument. We set this value to be greater than <code>max.edge</code> to provide multiple “layers” of triangles in the outer domain.</p>
+<ul>
+<li>Once the spatial range is estimated be <code>sdmTMB</code>, we can update our initial range in the mesh.</li>
+</ul></li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="do">## INLA mesh----</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>max.edge <span class="ot">&lt;-</span> rough_range<span class="sc">/</span><span class="dv">3</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>offset <span class="ot">&lt;-</span> rough_range<span class="sc">/</span><span class="dv">2</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>custom_mesh <span class="ot">&lt;-</span> INLA<span class="sc">::</span><span class="fu">inla.mesh.2d</span>(<span class="at">loc.domain =</span> <span class="fu">st_coordinates</span>(hair_cpue_sf_filt),</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                           <span class="at">max.edge =</span> <span class="fu">c</span>(max.edge, max.edge <span class="sc">*</span> <span class="dv">2</span>),</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                           <span class="at">offset =</span> <span class="fu">c</span>(max.edge, offset))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `inla.mesh.2d()` was deprecated in INLA 23.08.18.
+ℹ Please use `fmesher::fm_mesh_2d_inla()` instead.
+ℹ For more information, see
+  https://inlabru-org.github.io/fmesher/articles/inla_conversion.html
+ℹ To silence these deprecation messages in old legacy code, set
+  `inla.setOption(fmesher.evolution.warn = FALSE)`.
+ℹ To ensure visibility of these messages in package tests, also set
+  `inla.setOption(fmesher.evolution.verbosity = 'warn')`.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># we need to convert the mesh prior to use in sdmTMB</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>custom_mesh_sdmTMB <span class="ot">&lt;-</span> sdmTMB<span class="sc">::</span><span class="fu">make_mesh</span>(<span class="at">data =</span> hair_cpue,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>                              <span class="at">xy_cols =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>),</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>                              <span class="at">mesh =</span> custom_mesh)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>This mesh has &gt; 1000 vertices. Mesh complexity has the single largest influence
+on fitting speed. Consider whether you require a mesh this complex, especially
+for initial model exploration. Check `your_mesh$mesh$n` to view the number of
+vertices.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ak_land, <span class="at">col =</span> <span class="st">"darkgreen"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(custom_mesh, <span class="at">add =</span> T)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">points</span>(hair_cpue<span class="sc">$</span>longitude, hair_cpue<span class="sc">$</span>latitude, <span class="at">col=</span><span class="st">"blue"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<ol start="4" type="1">
+<li><p>Haakon Bakka’s third suggestion for “What is needed for a good mesh” is that there should be no “weird-looking” parts. One thing that is immediately obvious in this mesh is that it extends over land. Is this an issue?</p>
+<p>Probably not unless there is a very large island splitting the study domain. The model assumes correlations decay over Euclidean distances and therefore would “borrow strength” for predictions using observation nearby in Euclidean terms but much further away in terms of how crabs move. At the spatial scale of the Eastern Bering Sea, I would be surprised if this mattered. Nonetheless, here is a “barrier mesh” version of the previous mesh. We will come back to this to see if it matters.</p></li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="do">## INLA mesh with barrier specified----</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>max.edge <span class="ot">&lt;-</span> rough_range<span class="sc">/</span><span class="dv">3</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>offset <span class="ot">&lt;-</span> rough_range<span class="sc">/</span><span class="dv">2</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>hair_loc_buffers_sp <span class="ot">&lt;-</span> hair_loc_buffers <span class="sc">%&gt;%</span> <span class="fu">as_Spatial</span>() <span class="co">#must be sp class, not sf</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>barrier_mesh <span class="ot">&lt;-</span> INLA<span class="sc">::</span><span class="fu">inla.mesh.2d</span>(<span class="at">boundary =</span> hair_loc_buffers_sp,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>                           <span class="at">max.edge =</span> <span class="fu">c</span>(max.edge, max.edge <span class="sc">*</span> <span class="dv">2</span>),</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>                           <span class="at">offset =</span> <span class="fu">c</span>(max.edge <span class="sc">*</span> <span class="dv">2</span>, offset))</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co"># we need to convert the mesh prior to use in sdmTMB</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>barrier_mesh_sdmTMB <span class="ot">&lt;-</span> sdmTMB<span class="sc">::</span><span class="fu">make_mesh</span>(<span class="at">data =</span> hair_cpue,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">xy_cols =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>),</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>                                          <span class="at">mesh =</span> barrier_mesh)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(ak_land, <span class="at">col =</span> <span class="st">"darkgreen"</span>)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(barrier_mesh, <span class="at">add =</span> T)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="fu">points</span>(hair_cpue<span class="sc">$</span>longitude, hair_cpue<span class="sc">$</span>latitude, <span class="at">col=</span><span class="st">"blue"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="allowing-sdmtmb-to-make-the-mesh" class="level4">
+<h4 class="anchored" data-anchor-id="allowing-sdmtmb-to-make-the-mesh">Allowing sdmTMB to make the mesh</h4>
+<p>The simpler option is to let internal functions within <code>sdmTMB</code> build the mesh for you using <code>make_mesh</code>. Within <code>make_mesh</code>, if <code>type = "cutoff"</code> then the user may adjust resolution by setting the <code>cutoff</code> value: lower cutoff provides a higher resolution mesh. If <code>type = "kmeans"</code> then the mesh vertices are assigned using an k-means algorithm, and the number of knots can be set with <code>n_knots.</code></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Approaches within sdmTMB vignette------</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Extremely simple cutoff:</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>sdmTMB_mesh1 <span class="ot">&lt;-</span> <span class="fu">make_mesh</span>(hair_cpue, <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>), </span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>                          <span class="at">cutoff =</span> <span class="dv">5</span>, <span class="at">type =</span> <span class="st">"cutoff"</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(sdmTMB_mesh1)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Using a k-means algorithm to assign vertices:</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>sdmTMB_mesh2 <span class="ot">&lt;-</span> <span class="fu">make_mesh</span>(hair_cpue, <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>), </span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>                          <span class="at">n_knots =</span> <span class="dv">150</span>, <span class="at">type =</span> <span class="st">"kmeans"</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(sdmTMB_mesh2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-5-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="mesh-complexity" class="level4">
+<h4 class="anchored" data-anchor-id="mesh-complexity">Mesh complexity</h4>
+<p>The number of vertices in the mesh is one of the primary factors determining computation time. To speed up modeling workflows, you might initially choose a coarser resolution mesh as you iterate on model structure.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="st">`</span><span class="at">N vertices</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">c</span>(custom_mesh_sdmTMB<span class="sc">$</span>mesh<span class="sc">$</span>n,</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>                        barrier_mesh_sdmTMB<span class="sc">$</span>mesh<span class="sc">$</span>n,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>                        sdmTMB_mesh1<span class="sc">$</span>mesh<span class="sc">$</span>n,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>                        sdmTMB_mesh2<span class="sc">$</span>mesh<span class="sc">$</span>n),</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>       <span class="at">Type =</span> <span class="fu">c</span>(<span class="st">"Custom - no barrier"</span>, </span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>                <span class="st">"Custom - barrier"</span>, <span class="co">#</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>                <span class="st">"sdmTMB - cutoff"</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>                <span class="st">"sdmTMB - kmeans"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 4 × 2
+  `N vertices` Type               
+         &lt;int&gt; &lt;chr&gt;              
+1         1707 Custom - no barrier
+2         3535 Custom - barrier   
+3          536 sdmTMB - cutoff    
+4          236 sdmTMB - kmeans    </code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="index-standardization-and-comparisons-with-design-based-indices" class="level2">
+<h2 class="anchored" data-anchor-id="index-standardization-and-comparisons-with-design-based-indices">Index standardization and comparisons with design-based indices</h2>
+<p>A common use of <code>sdmTMB</code> is to estimate the total or relative abundance or biomass of a species within a region over time, i.e., biomass or abundance “indices”. <code>sdmTMB</code> contains functions that will generate these indices when given a fitted model. We will explore these below, but it’s worth noting that these functions are simply taking model predictions and aggregating them in some way (e.g., summing predictions over space).</p>
+<p>A benefit to using <code>sdmTMB</code> to generate these indices is that <code>sdmTMB</code> applies the <em>delta method</em> internally to calculate standard errors on predictions, regardless of user-selected aggregation function.</p>
+<p>First, we need to fit a <code>sdmTMB</code> model. For simple index standardization, the relevant components are:</p>
+<ol type="1">
+<li><code>formula</code> - the standard R formula interface. In this case, we are asking the model to fit categorical, fixed effects intercepts for each year of data. We ensure that an intercept is produced for all years by suppressing the global model intercept with <code>~0</code>. We will add further complexity to this formula later.</li>
+<li><code>spatial</code> - when <code>on</code>, the model estimates a spatial random field. This is a “persistent deviation” in density across the spatial domain.</li>
+<li><code>spatiotemporal</code> - when specified, the model estimates a spatiotemporal random field. This is a random field that varies across time steps. We specify <code>iid</code> to start, meaning that the random field is estimated as independent through time. Spatiotemporal correlations are modeled when this is <code>ar1</code> or <code>rw</code></li>
+<li><code>time</code> - A string specifying the column name of the numeric time variable in input data frame.</li>
+<li><code>mesh</code> - the mesh object used to estimate the spatial and spatiotemporal random fields. Not necessary if spatial terms are excluded.</li>
+<li><code>family</code> - the distribution for observation error and the link function. Here is where we specify delta models if desired.</li>
+</ol>
+<section id="model-fitting" class="level3">
+<h3 class="anchored" data-anchor-id="model-fitting">Model fitting</h3>
+<p>Here we fit a model using Tweedie observation error with a log link, spatial, and spatiotemporal random fields (iid).</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>process <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  m1 <span class="ot">&lt;-</span> sdmTMB<span class="sc">::</span><span class="fu">sdmTMB</span>(</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>          <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>          <span class="at">spatial =</span> <span class="st">"on"</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>          <span class="at">spatiotemporal =</span> <span class="st">"iid"</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>          <span class="at">time =</span> <span class="st">"year"</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>          <span class="at">mesh =</span> sdmTMB_mesh2, <span class="co"># simple mesh for speed</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>          <span class="at">family =</span> <span class="fu">tweedie</span>(<span class="at">link =</span> <span class="st">"log"</span>),</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>          <span class="at">data =</span> hair_cpue)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(m1, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1.rdata"</span>))</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1.rdata"</span>))</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="model-evaluation" class="level3">
+<h3 class="anchored" data-anchor-id="model-evaluation">Model evaluation</h3>
+<section id="model-summary" class="level4">
+<h4 class="anchored" data-anchor-id="model-summary">Model summary</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>m1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Spatiotemporal model fit by ML ['sdmTMB']
+Formula: cpue ~ 0 + as.factor(year)
+Mesh: sdmTMB_mesh2 (isotropic covariance)
+Time column: year
+Data: hair_cpue
+Family: tweedie(link = 'log')
+ 
+Conditional model:
+                    coef.est coef.se
+as.factor(year)2014    -0.22    0.57
+as.factor(year)2015    -0.84    0.58
+as.factor(year)2016    -1.63    0.61
+as.factor(year)2017    -1.11    0.58
+as.factor(year)2018    -1.32    0.59
+as.factor(year)2019    -1.90    0.61
+as.factor(year)2021    -2.07    0.62
+as.factor(year)2022    -2.06    0.61
+as.factor(year)2023    -1.90    0.62
+as.factor(year)2024    -1.37    0.61
+
+Dispersion parameter: 21.70
+Tweedie p: 1.01
+Matérn range: 106.24
+Spatial SD: 2.62
+Spatiotemporal IID SD: 1.15
+ML criterion at convergence: 1905.844
+
+See ?tidy.sdmTMB to extract these values as a data frame.
+
+**Possible issues detected! Check output of sanity().**</code></pre>
+</div>
+</div>
+<p>A few key elements here.</p>
+<ol type="1">
+<li>The <code>dispersion parameter</code> and <code>Tweedie p</code> are parameters associated with the Tweedie distribution estimated from the data.</li>
+<li>The <code>Matern range</code> specifies the distance in km at which observations are no longer substantially correlated (if coordinates are in units of km).</li>
+<li><code>Spatial SD</code> and <code>Spatiotemporal IID SD</code> - Marginal standard deviations of the spatial and spatiotemporal random fields. How variable is the spatial random field, and how variable are the spatiotemporal random fields?</li>
+<li><code>ML criterion at convergence</code> - The maximized joint negative log likelihood for the fitted model.</li>
+</ol>
+</section>
+<section id="model-diagnostics" class="level4">
+<h4 class="anchored" data-anchor-id="model-diagnostics">Model diagnostics</h4>
+<p>Identifying issues with fitted models is made easy with the <code>sanity</code> function. This function also runs internally when the model fits in the <code>sdmTMB</code> function, and will produce a message at the end if an issue occurs.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sanity</span>(m1) <span class="co">#Tweedie model</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ Non-linear minimizer suggests successful convergence</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ Hessian matrix is positive definite</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No extreme or very small eigenvalues detected</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✖ `ln_kappa` gradient &gt; 0.001</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>ℹ See ?run_extra_optimization(), standardize covariates, and/or simplify the model</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✖ `ln_phi` gradient &gt; 0.001
+ℹ See ?run_extra_optimization(), standardize covariates, and/or simplify the model</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No fixed-effect standard errors are NA</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No standard errors look unreasonably large</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No sigma parameters are &lt; 0.01</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No sigma parameters are &gt; 100</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ Range parameter doesn't look unreasonably large</code></pre>
+</div>
+</div>
+<p>We are met with issues from this fitted model, including <code>ln_kappa gradient &gt; 0.001</code> and <code>ln_phi gradient &gt; 0.001</code>. The kappa being referred to is either the spatial or spatiotemporal decorrelation rate, and phi is the Tweedie dispersion parameter.</p>
+<p>Our initial analysis of residual spatial correlation points to the likely issue and how to solve it. <code>sdmTMB</code> models assume isotropic stationarity in spatial correlations (i.e., correlation is independent of direction). We can relax this assumption and allow for directionally dependent spatial correlations by setting <code>anisotropy = TRUE</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  m1<span class="fl">.2</span> <span class="ot">&lt;-</span> sdmTMB<span class="sc">::</span><span class="fu">sdmTMB</span>(</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>          <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year),</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>          <span class="at">spatial =</span> <span class="st">"on"</span>,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>          <span class="at">spatiotemporal =</span> <span class="st">"iid"</span>,</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>          <span class="at">time =</span> <span class="st">"year"</span>,</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>          <span class="at">anisotropy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>          <span class="at">mesh =</span> sdmTMB_mesh2,  <span class="co"># simple mesh for speed</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>          <span class="at">family =</span> <span class="fu">tweedie</span>(<span class="at">link =</span> <span class="st">"log"</span>),</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>          <span class="at">data =</span> hair_cpue)</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(m1<span class="fl">.2</span>, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1_2.rdata"</span>))</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1_2.rdata"</span>))</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>m1<span class="fl">.2</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Spatiotemporal model fit by ML ['sdmTMB']
+Formula: cpue ~ 0 + as.factor(year)
+Mesh: sdmTMB_mesh2 (anisotropic covariance)
+Time column: year
+Data: hair_cpue
+Family: tweedie(link = 'log')
+ 
+Conditional model:
+                    coef.est coef.se
+as.factor(year)2014    -0.18    0.58
+as.factor(year)2015    -0.82    0.59
+as.factor(year)2016    -1.62    0.62
+as.factor(year)2017    -1.12    0.59
+as.factor(year)2018    -1.29    0.59
+as.factor(year)2019    -1.87    0.61
+as.factor(year)2021    -2.06    0.62
+as.factor(year)2022    -2.03    0.62
+as.factor(year)2023    -1.89    0.62
+as.factor(year)2024    -1.38    0.61
+
+Dispersion parameter: 21.70
+Tweedie p: 1.01
+Matérn anisotropic range (spatial): 46.4 to 208.9 at 116 deg.
+Spatial SD: 2.84
+Spatiotemporal IID SD: 1.24
+ML criterion at convergence: 1901.838
+
+See ?tidy.sdmTMB to extract these values as a data frame.
+See ?plot_anisotropy to plot the anisotropic range.</code></pre>
+</div>
+</div>
+<p>This addition resolves the errors in <code>sanity</code>. <code>sdmTMB</code> also include functions to visualize the directionality of anisotropy. The major axis of spatial correlation aligns with the distribution of hair crab in Bristol Bay, and the minor axis aligns with the relationship between the Bristol Bay and Pribilof Islands stocks.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_anisotropy</span>(m1<span class="fl">.2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_anisotropy2</span>(m1<span class="fl">.2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-11-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="evaluating-model-residuals" class="level4">
+<h4 class="anchored" data-anchor-id="evaluating-model-residuals">Evaluating model residuals</h4>
+<p>There are a few ways to evaluate model residuals in <code>sdmTMB</code>. Detailed examples are provided <a href="https://sdmtmb.github.io/sdmTMB/articles/residual-checking.html">here</a>. The main three are as follows:</p>
+<ol type="1">
+<li><strong>Randomized quantile residuals</strong> - Residuals are transformed from Tweedie (in this case) to a uniform distribution (cumulative probabilities). Probabilities are transformed to normal quantiles. Well-behaved rediuals will appear normal.
+<ul>
+<li>Residuals calculated by sampling once from the approximate MVN distribution of the random effects, conditional on fixed effects held at their MLEs.</li>
+<li>Best to set a seed to avoid fishing for good looking residuals.</li>
+</ul></li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">67</span>)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>r1 <span class="ot">&lt;-</span> <span class="fu">residuals</span>(m1<span class="fl">.2</span>, <span class="at">type =</span> <span class="st">"mle-mvn"</span>)</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="fu">qqnorm</span>(r1);<span class="fu">abline</span>(<span class="dv">0</span>, <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ks.test</span>(r1, pnorm) <span class="co"># test to see if residuals deviate from normal</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Asymptotic one-sample Kolmogorov-Smirnov test
+
+data:  r1
+D = 0.036775, p-value = 0.0003778
+alternative hypothesis: two-sided</code></pre>
+</div>
+</div>
+<ol start="2" type="1">
+<li><strong>Simulation-based randomized quantile residuals</strong> (DHARMa)</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">67</span>)</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>r2 <span class="ot">&lt;-</span> <span class="fu">simulate</span>(m1<span class="fl">.2</span>, <span class="at">nsim =</span> <span class="dv">1000</span>, <span class="at">type =</span> <span class="st">"mle-mvn"</span>) <span class="sc">%&gt;%</span> <span class="co">#simulate</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dharma_residuals</span>(m1<span class="fl">.2</span>, <span class="at">return_DHARMa =</span> <span class="cn">TRUE</span>) <span class="co"># pass to DHARMa</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(r2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<ol start="3" type="1">
+<li><strong>MCMC based residuals</strong> - Relaxes assumptions of multivariate normality for random effects for randomized quantile residuals. This approach uses MCMC to sample the REs with fixed effects held at their MLEs.</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  samps <span class="ot">&lt;-</span> sdmTMBextra<span class="sc">::</span><span class="fu">predict_mle_mcmc</span>(m1<span class="fl">.2</span>, <span class="at">mcmc_iter =</span> <span class="dv">2000</span>, <span class="at">mcmc_warmup =</span> <span class="dv">800</span>)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  mcmc_res <span class="ot">&lt;-</span> <span class="fu">residuals</span>(m1<span class="fl">.2</span>, <span class="at">type =</span> <span class="st">"mle-mcmc"</span>, <span class="at">mcmc_samples =</span> samps)</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(mcmc_res, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1_mcmc_resids.rdata"</span>))</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1_mcmc_resids.rdata"</span>))</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+SAMPLING FOR MODEL 'tmb_generic' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.008339 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 83.39 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 2000 [  0%]  (Warmup)
+Chain 1: Iteration:  200 / 2000 [ 10%]  (Warmup)
+Chain 1: Iteration:  400 / 2000 [ 20%]  (Warmup)
+Chain 1: Iteration:  600 / 2000 [ 30%]  (Warmup)
+Chain 1: Iteration:  800 / 2000 [ 40%]  (Warmup)
+Chain 1: Iteration:  801 / 2000 [ 40%]  (Sampling)
+Chain 1: Iteration: 1000 / 2000 [ 50%]  (Sampling)
+Chain 1: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+Chain 1: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+Chain 1: Iteration: 1600 / 2000 [ 80%]  (Sampling)
+Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
+Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
+Chain 1: 
+Chain 1:  Elapsed Time: 925.56 seconds (Warm-up)
+Chain 1:                1427.94 seconds (Sampling)
+Chain 1:                2353.51 seconds (Total)
+Chain 1: </code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: The largest R-hat is 1.06, indicating chains have not mixed.
+Running the chains for more iterations may help. See
+https://mc-stan.org/misc/warnings.html#r-hat</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+Running the chains for more iterations may help. See
+https://mc-stan.org/misc/warnings.html#bulk-ess</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+Running the chains for more iterations may help. See
+https://mc-stan.org/misc/warnings.html#tail-ess</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">qqnorm</span>(mcmc_res)</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="fu">abline</span>(<span class="dv">0</span>, <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ks.test</span>(mcmc_res, pnorm)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Asymptotic one-sample Kolmogorov-Smirnov test
+
+data:  mcmc_res
+D = 0.021258, p-value = 0.114
+alternative hypothesis: two-sided</code></pre>
+</div>
+</div>
+<p>MCMC based residuals are more robust than randomized quantile residuals due to relaxation of assumptions on REs, although take substantially more time to generate. DHARMa residuals are useful because you get easy access to the various tests available in DHARMa.</p>
+<p>We identified some departure from residual expectations for this model when applying the analytical and simulation-based quantile residuals approach. The MCMC-based residuals behave as expected, although warnings during sampling suggest that MCMC chains may not have mixed well. Troubleshooting thing will take iteration, but it is worth exploring all three approaches to stress test your models.</p>
+</section>
+</section>
+<section id="predicting-from-the-model" class="level3">
+<h3 class="anchored" data-anchor-id="predicting-from-the-model">Predicting from the model</h3>
+<p>Predicting from <code>sdmTMB</code> models is fun and rewarding. Here we will generate interannual predictions of hair crab density over a gridded spatial domain (the prediction grid) and compare them visually with observed CPUE. We need to expand our prediction grid so that we are generating predictions for each year.</p>
+<section id="generating-the-prediction-grid" class="level4">
+<h4 class="anchored" data-anchor-id="generating-the-prediction-grid">Generating the prediction grid</h4>
+<p>The general workflow for predicting from sdmTMB models at new locations and/or times is as follows:</p>
+<ol type="1">
+<li>Select a grid cell size and create the grid. In the following I provide you with the workflows to either a) alter grid cell resolution to use your own, or b) you can instead choose the gridded region used in the development of design-based indices for the EBS.</li>
+<li>Expand the data so that all grid cells are available at all time steps. Additional covariates must be included as columns.</li>
+<li>Extract grid cell centroids and convert to a data frame with columns for your longitude and latitude variables.</li>
+</ol>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>custom_resolution <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Set custom grid cell resolution</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (custom_resolution){</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>  cellsize <span class="ot">&lt;-</span> <span class="dv">20</span> <span class="co">#km x cellsize km</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>  <span class="co"># polygon for the EBS</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>  ebs_domain <span class="ot">&lt;-</span> </span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_read</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/SAP_layers.gdb"</span>),</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>          <span class="at">layer =</span> <span class="st">"EBS_grid"</span>,</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>          <span class="at">quiet =</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_transform</span>(., ak_crs) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_union</span>()</span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>  <span class="co"># re-grid it to our spatial resolution</span></span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a>  ebs_grid <span class="ot">&lt;-</span> ebs_domain <span class="sc">%&gt;%</span> </span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_make_grid</span>(., <span class="at">cellsize  =</span> cellsize) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_intersection</span>(., hair_loc_buffers) <span class="sc">%&gt;%</span></span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(.),</span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a>           <span class="at">area =</span> <span class="fu">as.numeric</span>(<span class="fu">st_area</span>(.)))</span>
+<span id="cb44-21"><a href="#cb44-21" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-22"><a href="#cb44-22" aria-hidden="true" tabindex="-1"></a>  <span class="co"># expand over time</span></span>
+<span id="cb44-23"><a href="#cb44-23" aria-hidden="true" tabindex="-1"></a>  pred_grid <span class="ot">&lt;-</span> ebs_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb44-24"><a href="#cb44-24" aria-hidden="true" tabindex="-1"></a>    tidyr<span class="sc">::</span><span class="fu">expand_grid</span>(.,</span>
+<span id="cb44-25"><a href="#cb44-25" aria-hidden="true" tabindex="-1"></a>                       <span class="at">year =</span> <span class="fu">min</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year))<span class="sc">:</span><span class="fu">max</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year))) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-26"><a href="#cb44-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb44-27"><a href="#cb44-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(year <span class="sc">!=</span> <span class="dv">2020</span>) <span class="co"># COVID year - no survey so should not be in final data</span></span>
+<span id="cb44-28"><a href="#cb44-28" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-29"><a href="#cb44-29" aria-hidden="true" tabindex="-1"></a>  <span class="co"># final outputs</span></span>
+<span id="cb44-30"><a href="#cb44-30" aria-hidden="true" tabindex="-1"></a>  pred_df <span class="ot">&lt;-</span> pred_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb44-31"><a href="#cb44-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb44-32"><a href="#cb44-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-33"><a href="#cb44-33" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>)</span>
+<span id="cb44-34"><a href="#cb44-34" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-35"><a href="#cb44-35" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb44-36"><a href="#cb44-36" aria-hidden="true" tabindex="-1"></a>    <span class="co"># polygon for the EBS</span></span>
+<span id="cb44-37"><a href="#cb44-37" aria-hidden="true" tabindex="-1"></a>  ebs_grid <span class="ot">&lt;-</span> </span>
+<span id="cb44-38"><a href="#cb44-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_read</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/SAP_layers.gdb"</span>),</span>
+<span id="cb44-39"><a href="#cb44-39" aria-hidden="true" tabindex="-1"></a>          <span class="at">layer =</span> <span class="st">"EBS_grid"</span>,</span>
+<span id="cb44-40"><a href="#cb44-40" aria-hidden="true" tabindex="-1"></a>          <span class="at">quiet =</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-41"><a href="#cb44-41" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_transform</span>(., ak_crs) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-42"><a href="#cb44-42" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_intersection</span>(., hair_loc_buffers) <span class="sc">%&gt;%</span></span>
+<span id="cb44-43"><a href="#cb44-43" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">area =</span> <span class="fu">as.numeric</span>(<span class="fu">st_area</span>(.))) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-44"><a href="#cb44-44" aria-hidden="true" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(area) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-45"><a href="#cb44-45" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(.))</span>
+<span id="cb44-46"><a href="#cb44-46" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-47"><a href="#cb44-47" aria-hidden="true" tabindex="-1"></a>  <span class="co"># expand over time</span></span>
+<span id="cb44-48"><a href="#cb44-48" aria-hidden="true" tabindex="-1"></a>  pred_grid <span class="ot">&lt;-</span> ebs_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb44-49"><a href="#cb44-49" aria-hidden="true" tabindex="-1"></a>    tidyr<span class="sc">::</span><span class="fu">expand_grid</span>(.,</span>
+<span id="cb44-50"><a href="#cb44-50" aria-hidden="true" tabindex="-1"></a>                       <span class="at">year =</span> <span class="fu">min</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year))<span class="sc">:</span><span class="fu">max</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year)),</span>
+<span id="cb44-51"><a href="#cb44-51" aria-hidden="true" tabindex="-1"></a>                       <span class="at">var =</span> <span class="st">"hair_crab"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-52"><a href="#cb44-52" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb44-53"><a href="#cb44-53" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(year <span class="sc">!=</span> <span class="dv">2020</span>) <span class="co"># COVID year - no survey so should not be in final data</span></span>
+<span id="cb44-54"><a href="#cb44-54" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb44-55"><a href="#cb44-55" aria-hidden="true" tabindex="-1"></a>  <span class="co"># convert to df</span></span>
+<span id="cb44-56"><a href="#cb44-56" aria-hidden="true" tabindex="-1"></a>  pred_df <span class="ot">&lt;-</span> pred_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb44-57"><a href="#cb44-57" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb44-58"><a href="#cb44-58" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-59"><a href="#cb44-59" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb44-60"><a href="#cb44-60" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.data.frame</span>()</span>
+<span id="cb44-61"><a href="#cb44-61" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="model-predictions" class="level4">
+<h4 class="anchored" data-anchor-id="model-predictions">Model predictions</h4>
+<p>Our goal is to generate an abundance index that approximates the design-based index for legal male hair crab. The model-based index in the NMFS EBS survey report is produced for the full Eastern Bering Sea. Therefore, there is no need to filter our prediction data frame prior to using it as <code>newdata</code> in <code>sdmTMB::predict</code> - we’ve already trimmed the prediction grid to the area of the EBS that overlaps with where hair crab occur. <code>return_tmb_object = TRUE</code> is required for passing predictions to the <code>get_index</code> function for index calculation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a>model_predictions_df <span class="ot">&lt;-</span> <span class="fu">predict</span>(m1<span class="fl">.2</span>, <span class="at">newdata =</span> pred_df, <span class="at">type =</span> <span class="st">"link"</span>,</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>                                <span class="at">return_tmb_object =</span> <span class="cn">TRUE</span>) </span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>model_predictions_df<span class="sc">$</span>data</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 12,340 × 10
+      id   area  year longitude latitude    est est_non_rf est_rf omega_s
+   &lt;int&gt;  &lt;dbl&gt; &lt;int&gt;     &lt;dbl&gt;    &lt;dbl&gt;  &lt;dbl&gt;      &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+ 1     1 0.0540  2014     -605.     596.  0.886     -0.178  1.06    0.543
+ 2     1 0.0540  2015     -605.     596. -0.230     -0.822  0.591   0.543
+ 3     1 0.0540  2016     -605.     596. -1.22      -1.62   0.398   0.543
+ 4     1 0.0540  2017     -605.     596. -0.453     -1.12   0.662   0.543
+ 5     1 0.0540  2018     -605.     596. -0.927     -1.29   0.358   0.543
+ 6     1 0.0540  2019     -605.     596. -1.28      -1.87   0.595   0.543
+ 7     1 0.0540  2021     -605.     596. -1.60      -2.06   0.464   0.543
+ 8     1 0.0540  2022     -605.     596. -1.57      -2.03   0.456   0.543
+ 9     1 0.0540  2023     -605.     596. -1.47      -1.89   0.426   0.543
+10     1 0.0540  2024     -605.     596. -0.865     -1.38   0.520   0.543
+# ℹ 12,330 more rows
+# ℹ 1 more variable: epsilon_st &lt;dbl&gt;</code></pre>
+</div>
+</div>
+<p>The prediction data frame contains several columns of interests:</p>
+<ol type="1">
+<li><code>est</code> - Predicted hair crab log-density (set <code>type = response</code> for the estimate on the response scale).</li>
+<li><code>est_non_rf</code> - Log-density associated with fixed effects (year).</li>
+<li><code>est_rf</code> - Log-density associated with random effects (spatial and spatiotemporal random fields).</li>
+<li><code>omega_s</code> - Log-density associated with spatial random field.</li>
+<li><code>epsilon_st</code> - Log-density associated with spatiotemporal random field.</li>
+</ol>
+<p>Visualizing predictions by year:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>model_predictions_sf <span class="ot">&lt;-</span> pred_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(., model_predictions_df<span class="sc">$</span>data, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"id"</span>,<span class="st">"year"</span>)) </span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> ak_land, <span class="at">fill =</span> <span class="st">"darkgreen"</span>, <span class="at">alpha =</span> <span class="fl">0.75</span>) <span class="sc">+</span></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> model_predictions_sf, <span class="fu">aes</span>(<span class="at">fill =</span> est, <span class="at">color =</span> est)) <span class="sc">+</span></span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> hair_cpue_sf_filt <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cpue <span class="sc">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>                                              year <span class="sc">&gt;=</span> <span class="dv">2014</span>),</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>          <span class="fu">aes</span>(<span class="at">size =</span> <span class="fu">log</span>(cpue)), <span class="at">color =</span> <span class="st">"red"</span>, <span class="at">alpha =</span> <span class="fl">0.5</span>) <span class="sc">+</span></span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_gradient2</span>(<span class="at">low =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"red"</span>),</span>
+<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>                       <span class="at">high =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"blue"</span>))<span class="sc">+</span></span>
+<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_color_gradient2</span>(<span class="at">low =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"red"</span>),</span>
+<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a>                       <span class="at">high =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"blue"</span>))<span class="sc">+</span></span>
+<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">"none"</span>) <span class="sc">+</span></span>
+<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">fill =</span> <span class="st">"Predicted log(CPUE)"</span>,</span>
+<span id="cb47-16"><a href="#cb47-16" aria-hidden="true" tabindex="-1"></a>       <span class="at">size =</span> <span class="st">"Observed log(CPUE&gt;0)"</span>) <span class="sc">+</span></span>
+<span id="cb47-17"><a href="#cb47-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span> </span>
+<span id="cb47-18"><a href="#cb47-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_sf</span>(<span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">650</span>, <span class="dv">1500</span>),</span>
+<span id="cb47-19"><a href="#cb47-19" aria-hidden="true" tabindex="-1"></a>         <span class="at">xlim =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">1300</span>, <span class="sc">-</span><span class="dv">175</span>)) <span class="sc">+</span></span>
+<span id="cb47-20"><a href="#cb47-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>year, <span class="at">ncol =</span> <span class="dv">3</span>) <span class="sc">+</span></span>
+<span id="cb47-21"><a href="#cb47-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"bottom"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid figure-img" width="816"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="generating-the-abundance-index" class="level3">
+<h3 class="anchored" data-anchor-id="generating-the-abundance-index">Generating the abundance index</h3>
+<p>Generating the final index is quite easy using the <code>get_index</code> function. Remember that the <code>area</code> argument is in sq. km. In the following script, we calculate the model-based index using <code>get_index</code>, and bind that to the design-based indices produced by <code>crabpack</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>model_based_index <span class="ot">&lt;-</span> </span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">get_index</span>(<span class="at">obj =</span> model_predictions_df,</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>          <span class="at">bias_correct =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>          <span class="at">area =</span> pred_df<span class="sc">$</span>area) <span class="sc">%&gt;%</span> </span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">type =</span> <span class="st">"Model-based"</span>)</span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>design_based_index <span class="ot">&lt;-</span> </span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>  hc_design_index_ebs <span class="sc">%&gt;%</span> </span>
+<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rename_all</span>(str_to_lower) <span class="sc">%&gt;%</span> </span>
+<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">lwr =</span> <span class="fu">ifelse</span>((abundance <span class="sc">-</span> abundance_ci) <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a>                                (abundance <span class="sc">-</span> abundance_ci)),</span>
+<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a>           <span class="at">upr =</span> abundance <span class="sc">+</span> abundance_ci,</span>
+<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a>           <span class="at">type =</span> <span class="st">"Design-based"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb48-14"><a href="#cb48-14" aria-hidden="true" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(year, </span>
+<span id="cb48-15"><a href="#cb48-15" aria-hidden="true" tabindex="-1"></a>                  <span class="at">est =</span> abundance,</span>
+<span id="cb48-16"><a href="#cb48-16" aria-hidden="true" tabindex="-1"></a>                  lwr,</span>
+<span id="cb48-17"><a href="#cb48-17" aria-hidden="true" tabindex="-1"></a>                  upr,</span>
+<span id="cb48-18"><a href="#cb48-18" aria-hidden="true" tabindex="-1"></a>                  type) <span class="sc">%&gt;%</span> </span>
+<span id="cb48-19"><a href="#cb48-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> <span class="dv">2014</span>)</span>
+<span id="cb48-20"><a href="#cb48-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-21"><a href="#cb48-21" aria-hidden="true" tabindex="-1"></a>combined_indices <span class="ot">&lt;-</span> model_based_index <span class="sc">%&gt;%</span> </span>
+<span id="cb48-22"><a href="#cb48-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(., design_based_index)</span>
+<span id="cb48-23"><a href="#cb48-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-24"><a href="#cb48-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-25"><a href="#cb48-25" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(combined_indices)<span class="sc">+</span></span>
+<span id="cb48-26"><a href="#cb48-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_errorbar</span>(<span class="fu">aes</span>(<span class="at">ymax =</span> upr, <span class="at">ymin =</span> lwr, <span class="at">x =</span> year, <span class="at">color =</span> type), <span class="at">width =</span> <span class="dv">0</span>, <span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb48-27"><a href="#cb48-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> est, <span class="at">x =</span> year, <span class="at">color =</span> type), <span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb48-28"><a href="#cb48-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">"Model-based"</span> <span class="ot">=</span> <span class="st">"darkorange"</span>,<span class="st">"Design-based"</span> <span class="ot">=</span> <span class="st">"purple"</span>)) <span class="sc">+</span></span>
+<span id="cb48-29"><a href="#cb48-29" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Design-based vs. model-based hair crab abundance indices"</span>,</span>
+<span id="cb48-30"><a href="#cb48-30" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Abundance"</span>,</span>
+<span id="cb48-31"><a href="#cb48-31" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Year"</span>) <span class="sc">+</span></span>
+<span id="cb48-32"><a href="#cb48-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span></span>
+<span id="cb48-33"><a href="#cb48-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.title =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb48-34"><a href="#cb48-34" aria-hidden="true" tabindex="-1"></a>        <span class="at">legend.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb48-35"><a href="#cb48-35" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title =</span>  <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb48-36"><a href="#cb48-36" aria-hidden="true" tabindex="-1"></a>        <span class="at">title  =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">14</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid figure-img" width="768"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>The design-based and model-based indices are roughly the same, as expected</p>
+<p>What if we’re looking for an index on the scale of the units? For instance, if our observations are catch per pot or number per unit hour etc. We can simulate predictions from the joint precision matrix and apply any aggregation function over those draws.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>model_predictions_df_sim <span class="ot">&lt;-</span> <span class="fu">predict</span>(m1<span class="fl">.2</span>, </span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">newdata =</span> pred_df, </span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">nsim =</span> <span class="dv">1000</span>,</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">type =</span> <span class="st">"link"</span>)</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>model_based_index_relative <span class="ot">&lt;-</span> </span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">get_index_sims</span>(<span class="at">obj =</span> model_predictions_df_sim,</span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>                 <span class="at">agg_function =</span> <span class="cf">function</span>(x) <span class="fu">median</span>(<span class="fu">exp</span>(x)),</span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>                 <span class="at">est_function =</span> median)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>We generally recommend using `get_index(..., bias_correct = TRUE)`
+rather than `get_index_sims()`.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(model_based_index_relative)<span class="sc">+</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_errorbar</span>(<span class="fu">aes</span>(<span class="at">ymax =</span> upr, <span class="at">ymin =</span> lwr, </span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>                    <span class="at">x =</span> year), <span class="at">width =</span> <span class="dv">0</span>, <span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> est, <span class="at">x =</span> year), <span class="at">linewidth =</span> <span class="dv">1</span>) <span class="sc">+</span></span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">"Catch km^-2"</span>,</span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">x =</span> <span class="st">"Year"</span>,</span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">title =</span> <span class="st">"Simulation-based relative index"</span>) <span class="sc">+</span></span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span></span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.title =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a>        <span class="at">legend.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title =</span>  <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="sdmTMB_index_standardization_files/figure-html/unnamed-chunk-19-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Keep in mind that we only fitted a single model in this analysis. Next, we will discuss model comparison and selection.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

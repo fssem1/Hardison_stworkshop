@@ -1,0 +1,43 @@
+---
+title: "sdmTMB lab exercises"
+format: html
+editor: visual
+---
+
+## Instructions
+
+I have posed some open ended analyses for you to work through using the hair crab or Bristol Bay red king crab CPUE data. You do not need to work through them in order - just pick one and get started.
+
+To save time, you should make use of the existing scripts in the `R/` folder to complete analyses.
+
+## Troubleshooting guidance
+
+sdmTMB models are complex and sometimes can be frusturating to iterate on. Here are some tips to get you started and to increase efficiency:
+
+1.  Use simple meshes to fit models before increasing mesh complexity
+
+2.  Fit models using temporal subsets of data prior to fitting with all data.
+
+3.  MCMC sampling is time intensive - visualize residuals with quantile based residuals first to gauge goodness of fit. Explore the various tests available in `DHARMa`.
+
+4.  If your model is failing to converge or failing sanity checks, first identify which parts of the model are failing and look at the model summary to get a sense for why. If you're using a subset of the full data set for speed, try including more data. Try simplifying the mesh. Playing with the anisotropy term or adding a spatial categorical predictor may help the model to converge (e.g., `district` in previous analysis).
+
+    -   If those fail, try to simplify. For instance, in the previous analysis, I dropped the spatiotemporal random field in favor of a iid random intercept for `year`. Overly complex smooth terms may also lead to problems. In those cases, try reducing the number of basis functions with `k`.
+
+## Exercises
+
+1.  We did not include 2020 in our prediction grid because there was no survey that year. Re-fit the hair crab index standardization model using a spatiotemporal random field with "ar1" or "rw" correlation structure. Use the fitted model to interpolate hair crab density for 2020, and visualize your predictions.
+
+2.  Prediction uncertainty can be visualized via simulation using `predict` with `nsim > 0`. Fit a model (or use the available fitted models) and visualize the coefficients of variation (CV) of predicted density on the map for a single year.
+
+3.  Is the Tweedie model observation error the best choice for fitting these models? Compare a Tweedie model with a model fitted using a delta modeling approach. For example, `family = delta_lognormal`.
+
+4.  The benefit of these data is that they are collected on a grid and there are no missing observations (in the EBS, at least). For this reason, I have heard it said that applying these spatial models to do index standardization is "testing that your software works". However, the real strengths of `sdmTMB` emerge when data are not tidily sampled on a grid.
+
+    -   So, randomly exclude 10-20% of observations within each year, and re-fit the model. How does this impact index standardization analyses relative to the model fitted with all data?
+
+<!-- -->
+
+5.  In the data processing section, we needed to make some decisions about how much of the available data we should use the fit our models. How sensitive are model outcomes to this decision?
+
+6.  We proposed a "barrier model" for spatial correlation but never used it. Try fitting a model using the barrier mesh, and compare results with the coarser resolution mesh. What changes?

@@ -1,0 +1,142 @@
+---
+title: "sdmTMB lab: data pre-processing and visualization"
+format: html
+editor: visual
+---
+
+### Packages and data
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(sf)
+library(mgcv)
+
+# load hair crab data
+load(here::here("data/hair_cpue.rdata"))
+
+# Coordinate reference system for projecting CPUE data (Albers Equal Area)
+# Ensure units are km
+ak_crs <- "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +datum=NAD83 +units=km +no_defs"
+
+# convert data frame to sf object and project
+hair_cpue_sf_all <- hair_cpue %>% 
+  st_as_sf(., coords = c("longitude","latitude"), crs = 4326) %>% # make sf
+  st_transform(., crs = ak_crs)
+
+bb_poly <- st_as_sfc(st_bbox(c(
+      xmin = -180,  xmax = -156,
+      ymin =  50, ymax =  70), 
+    crs = 4326))
+
+# Land polygon
+ak_land <- rnaturalearthhires::states10 %>%
+  filter(name == "Alaska") %>%
+  st_union() %>% 
+  st_intersection(bb_poly) %>% 
+  st_transform(ak_crs)
+```
+
+### Visualize survey effort distribution
+
+```{r}
+ggplot() + 
+  geom_sf(data = hair_cpue_sf_all, 
+          aes(color = district), 
+          size = 1) +
+  geom_sf(data = ak_land) +
+    coord_sf(ylim = c(550, 1800),
+           xlim = c(-1300, -175)) +
+  facet_wrap(~year)
+```
+
+#### Notes
+
+-   Northern Bering Sea (NBS) is not surveyed every year like the Eastern Bering Sea (EBS)
+-   EBS data prior to 2024 does includes "corner stations" around Pribilof Islands and St. Matthews Island
+-   Survey stations are not identical across years in NBS - sampling effort is more sparse in 2018
+
+### Visualize hair crab distribution
+
+```{r}
+
+# just look at >2011 data
+cpue_dist <- 
+  hair_cpue_sf_all %>% 
+  filter(cpue > 0, year > 2011)
+
+ggplot() + 
+  geom_sf(data = ak_land) +
+  geom_sf(data = cpue_dist, aes(color = cpue),
+          size = 0.5) +
+  geom_sf(data = cpue_dist, color = "red", size = 2) +
+  coord_sf(ylim = c(550, 1800),
+           xlim = c(-1300, -175)) +
+  facet_wrap(~year)
+```
+
+### Identify regions where hair crab are absent from all trawls
+
+-   To aid in model estimation, we will filter out zero observations outside a 45 km distance from observed positive catch values (filtering "false zeros")
+-   The blue polygon below indicates the region within which we will predict hair crab densities.
+
+```{r, message=FALSE, warning=FALSE}
+
+hair_loc_buffers <- hair_cpue_sf_all %>% # across all trawls
+  filter(cpue > 0) %>% #
+  concaveman::concaveman(., concavity = 3) %>% #Draw concave hull around positive catches
+  st_buffer(., dist = 45) %>%  # extend buffer
+  st_difference(ak_land) #remove sections of polygon intersecting land
+
+ggplot() +
+  geom_sf(data = hair_loc_buffers, fill = "lightblue") +
+  geom_sf(data = hair_cpue_sf_all %>% filter(cpue == 0), color = "red") +
+  geom_sf(data = hair_cpue_sf_all %>% filter(cpue > 0))
+
+```
+
+### Intersect buffer polygon with survey data
+
+-   These will be the data that we use to fit the model.
+-   To simplify analyses, we combine the `district` variable "ALL" and "NORTH" into a general "N. EBS/NBS" district.
+
+```{r, message=FALSE, warning=FALSE}
+hair_cpue_sf_filt <- hair_cpue_sf_all %>%
+  mutate(district = ifelse(district %in% c("ALL", "NORTH"), 
+                           "N. EBS/NBS",
+                           district)) %>% 
+  st_intersection(., hair_loc_buffers)
+```
+
+#### Notes
+
+-   Positive densities range from SE Bristol Bay into the SE NBS
+-   Positive catches also occur in the Pribs and St. Matt's
+-   Rare occurrences west of Pribs and in W. NBS
+
+### Visualize relationships with environmental covariates
+
+#### Temperature (gear temperature)
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(hair_cpue_sf_filt) + 
+  geom_point(aes(y = cpue, x = temp))+
+  facet_wrap(~district)
+```
+
+#### Depth (bottom depth)
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(hair_cpue_sf_filt) + 
+  geom_point(aes(y = cpue, x = bottom_depth)) +
+  facet_wrap(~district)
+```
+
+### Export processed data
+
+```{r, message=FALSE, warning=FALSE}
+save(hair_cpue_sf_filt,
+     hair_cpue_sf_all,
+     hair_loc_buffers,
+     ak_land,
+     file = here::here("data/processed_hair_crab_data.rdata"))
+```
