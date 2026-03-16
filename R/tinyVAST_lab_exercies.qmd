@@ -1,0 +1,34 @@
+---
+title: "tinyVAST_lab_exercises"
+format: html
+editor: visual
+---
+
+## Instructions
+
+The following open ended questions are meant to get you up to speed with the functionality of `tinyVAST` using available data. The same guidance for improving work efficiency with `sdmTMB` applies here.
+
+1. I mentioned that the AR1 and random walk spatiotemporal random fields have different assumptions (stationarity vs. non-stationarity). Fit AR1 and RW univariate index standardization models to the hair crab (or RKC) data, and use these models to project CPUE 5 years into the future. How do the projections differ? Generate annual abundance indices for these projections.
+
+2. The `tinyVAST` model specified with two Tweedie distributions had estimation problems. How might we simplify model structure to achieve a more stable fit? Go ahead an try it.
+
+3. Fit a bivariate vector autoregressive model for one year of male and female data, and compare predictions from this model (i.e., for male or female crab) with predictions from a univariate version for male or female crab. Which has better prediction skill? E.g., lower MAE/RMSE. If you have time, try it with multiple years of data.
+
+4.  Consider that I am a Pacific cod and also a statistician living in the Eastern Bering Sea. I enjoy male hair crab for breakfast and would like to derive an indicator time series of abundance from the NMFS survey data that I have been poaching for decades.
+
+    There are three districts included in the hair crab data set. Aggregate hair crab CPUE by district and year, and model their latent common trends using dynamic factor analysis (DFA). Here is a relevant spacetime_term to get you started:
+
+```{r}
+spacetime_term <- "
+  F1 -> F1, 1, NA, 1,          #rw for factor
+  F1 -> EBS, 0, b_fx           #loading of EBS series on factor
+  F1 -> PRIB, 0, b_fy
+  F1 -> NEBS_NBS, 0, b_fy
+  F1 <-> F1, 0, NA, 1          #unit variance for factor
+  EBS <-> EBS, 0, NA, 0        #turn off process error for EBS series etc
+  PRIB <-> PRIB, 0, NA, 0
+  NEBS_NBS <-> NEBS_NBS, 0, NA, 0
+"
+```
+
+5. Now pick a single year of data and fit a spatial factor model estimating the latent spatial structure shared between male and female hair crab. Consult `vignette("spatial_factor_analysis", package = "tinyVAST")` for fitting the spatial factor model.

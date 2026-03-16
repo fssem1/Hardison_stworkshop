@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.6.42">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>tinyVAST lab: index standardization and multivariate VAST models</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="tinyVAST_vast_model_files/libs/clipboard/clipboard.min.js"></script>
+<script src="tinyVAST_vast_model_files/libs/quarto-html/quarto.js"></script>
+<script src="tinyVAST_vast_model_files/libs/quarto-html/popper.min.js"></script>
+<script src="tinyVAST_vast_model_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="tinyVAST_vast_model_files/libs/quarto-html/anchor.min.js"></script>
+<link href="tinyVAST_vast_model_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="tinyVAST_vast_model_files/libs/quarto-html/quarto-syntax-highlighting-2f5df379a58b258e96c21c0638c20c03.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="tinyVAST_vast_model_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="tinyVAST_vast_model_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="tinyVAST_vast_model_files/libs/bootstrap/bootstrap-1bc8a17f135ab3d594c857e9f48e611b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">tinyVAST lab: index standardization and multivariate VAST models</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="packages-and-data" class="level3">
+<h3 class="anchored" data-anchor-id="packages-and-data">Packages and data</h3>
+<p>The main objective of this lab is to explore common use-cases of <code>tinyVAST</code> for ecologists and fisheries scientists. We’ll begin by porting over our index standardization model from sdmTMB to understand the components of tinyVAST. We’ll then extend this univariate spatiotemporal model in a multivariate and vector autoregressive context. Lastly, we’ll allow for the multivariate model to estimate two different response distributions for CPUE observations.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tinyVAST)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sdmTMB)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(here)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(DHARMa)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># load processed data from R/data_processing_and_visualization</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/processed_hair_crab_data.rdata"</span>))</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co"># load hair crab data</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/hair_cpue.rdata"</span>))</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># source helper functions</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"R/helpers.R"</span>))</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert sf to data.frame for use with sdmTMB</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>hair_cpue <span class="ot">&lt;-</span> </span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>  hair_cpue_sf_filt <span class="sc">%&gt;%</span> </span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> <span class="co"># turn points into lat/lon columns</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> <span class="co">#convert to data.frame</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> <span class="dv">2014</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">district =</span> <span class="fu">factor</span>(district),</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>         <span class="at">var =</span> <span class="st">"hair_crab"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>()</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="co"># CRS</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>ak_crs <span class="ot">&lt;-</span> <span class="st">"+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +datum=NAD83 +units=km +no_defs"</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="co"># load fitted sdmTMB model</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m1_2.rdata"</span>))</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="co"># We will use the same mesh for tinyVAST</span></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>sdmTMB_mesh2 <span class="ot">&lt;-</span> <span class="fu">make_mesh</span>(hair_cpue, <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>), </span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>                          <span class="at">n_knots =</span> <span class="dv">150</span>, <span class="at">type =</span> <span class="st">"kmeans"</span>)</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>tinyVAST_mesh <span class="ot">&lt;-</span> sdmTMB_mesh2<span class="sc">$</span>mesh</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="fit-the-equivalent-tinyvast-model" class="level4">
+<h4 class="anchored" data-anchor-id="fit-the-equivalent-tinyvast-model">Fit the equivalent tinyVAST model</h4>
+<p>All <code>tinyVAST</code> models require the user to specify arrow or arrow and lag notation expressing spatial, temporal, and/or spatiotemporal interactions among variables. Arrow and lag notation goes like this:</p>
+<ul>
+<li><p>First term - Specifies the variables involved. <code>tinyVAST</code> works in long format. If we have two response variables X and Y, then we would indicate that grouping in a column variable containing levels for “X” and “Y”. By default <code>tinyVAST</code> assumes this variable is called “var”.</p>
+<ul>
+<li>In this first term we indicate the type of effect: One-headed arrow = slope parameter, two-headed arrow = variance/covariance</li>
+</ul></li>
+<li><p>Second term - If this for a spatial interaction then the second term is the parameter name. If it’s a temporal/spatiotemporal interaction, then the order of the lag.</p></li>
+<li><p>Third term - For spatial interaction, this is an optional starting value for the parameter. For temporal/spatiotemporal interaction, this is the parameter name.</p>
+<ul>
+<li>When this term is set to “NA”, then the parameter can be preset to a fixed value specified in the fourth term.</li>
+</ul></li>
+<li><p>Fourth term - Only applicable when lags are specified - this is an optional starting value. If “NA” is specified, then the value of this term is fixed. For random walks, this would be 1.</p></li>
+</ul>
+<p>Our <code>sdmTMB</code> model estimates a spatial random field and an i.i.d. spatiotemporal random field, and we need to code these into arrow notation prior to fitting the model. If no mesh is included (<code>spatial_domain = NULL</code>), then the model is treated as a time series model.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># spatial random field</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>space_term <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab &lt;-&gt; hair_crab, sd_space</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>spacetime_term <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab &lt;-&gt; hair_crab, 0, sd_spacetime</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>m1_tv <span class="ot">&lt;-</span> <span class="fu">tinyVAST</span>(</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_term =</span> space_term,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">spacetime_term =</span> spacetime_term,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> hair_cpue,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year),</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">spatial_domain =</span> tinyVAST_mesh,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">tweedie</span>(),</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">time_column =</span> <span class="st">"year"</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_columns =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">variable_column =</span> <span class="st">"var"</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">tinyVASTcontrol</span>(</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">use_anisotropy =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">newton_loops =</span> <span class="dv">1</span> <span class="co"># sdmTMB sets newton_loops = 1 - set to 1 to get a similar sanity check</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>m1_tv</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Call: 
+tinyVAST(formula = cpue ~ 0 + as.factor(year), data = hair_cpue, 
+    space_term = space_term, spacetime_term = spacetime_term, 
+    family = tweedie(), spatial_domain = tinyVAST_mesh, control = tinyVASTcontrol(use_anisotropy = TRUE, 
+        newton_loops = 1), space_columns = c("longitude", "latitude"), 
+    time_column = "year", variable_column = "var")
+
+Run time: 
+Time difference of 9.531387 secs
+
+Family: 
+$obs
+
+Family: tweedie 
+Link function: log 
+
+
+
+
+sdreport(.) result
+             Estimate  Std. Error
+alpha_j    -0.1779686 0.576655457
+alpha_j    -0.8216232 0.587475676
+alpha_j    -1.6173165 0.618439020
+alpha_j    -1.1151871 0.585371158
+alpha_j    -1.2855500 0.587888693
+alpha_j    -1.8720350 0.614117011
+alpha_j    -2.0649769 0.622127139
+alpha_j    -2.0309965 0.615730450
+alpha_j    -1.8927764 0.624646400
+alpha_j    -1.3845763 0.613406985
+beta_z      1.2399068 0.159847652
+theta_z     2.8447076 0.372934373
+log_sigma   3.0774578 0.004151168
+log_sigma  -4.9152495 0.078286884
+log_kappa  -3.5497154 0.204635719
+ln_H_input -0.2358727 0.292745410
+ln_H_input -0.6515601 0.412329622
+Maximum gradient component: 2.507389e-07 
+
+Proportion conditional deviance explained: 
+[1] 0.7566074
+
+space_term: 
+  heads        to      from parameter start Estimate Std_Error  z_value
+1     2 hair_crab hair_crab         1  &lt;NA&gt; 2.844708 0.3729344 7.627904
+       p_value
+1 2.386013e-14
+
+spacetime_term: 
+  heads        to      from parameter start lag Estimate Std_Error  z_value
+1     2 hair_crab hair_crab         1  &lt;NA&gt;   0 1.239907 0.1598477 7.756803
+       p_value
+1 8.709695e-15
+
+Fixed terms: 
+                      Estimate Std_Error    z_value      p_value
+as.factor(year)2014 -0.1779686 0.5766555 -0.3086221 0.7576090401
+as.factor(year)2015 -0.8216232 0.5874757 -1.3985654 0.1619433364
+as.factor(year)2016 -1.6173165 0.6184390 -2.6151592 0.0089185869
+as.factor(year)2017 -1.1151871 0.5853712 -1.9050941 0.0567678384
+as.factor(year)2018 -1.2855500 0.5878887 -2.1867236 0.0287627113
+as.factor(year)2019 -1.8720350 0.6141170 -3.0483361 0.0023011242
+as.factor(year)2021 -2.0649769 0.6221271 -3.3192201 0.0009026926
+as.factor(year)2022 -2.0309965 0.6157305 -3.2985156 0.0009719748
+as.factor(year)2023 -1.8927764 0.6246464 -3.0301566 0.0024442696
+as.factor(year)2024 -1.3845763 0.6134070 -2.2571903 0.0239961844</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sanity_tv</span>(m1_tv)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ Non-linear minimizer suggests successful convergence</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ Hessian matrix is positive definite</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No extreme or very small eigenvalues detected</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No gradients with respect to fixed effects are &gt;= 0.001</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No fixed-effect standard errors are NA</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>✔ No standard errors look unreasonably large</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="comparisons-with-sdmtmb" class="level3">
+<h3 class="anchored" data-anchor-id="comparisons-with-sdmtmb">Comparisons with sdmTMB</h3>
+<section id="annual-intercepts" class="level4">
+<h4 class="anchored" data-anchor-id="annual-intercepts">Annual intercepts</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># extract parameters estimated as fixed effects (year intercepts)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>year_seq <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">2014</span><span class="sc">:</span><span class="dv">2019</span>, <span class="dv">2021</span><span class="sc">:</span><span class="dv">2024</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># for tinyVAST, these are returned as "alpha_j"</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>tv_params <span class="ot">&lt;-</span> m1_tv<span class="sc">$</span>sdrep</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>tv_names <span class="ot">&lt;-</span> <span class="fu">names</span>(tv_params<span class="sc">$</span>par.fixed)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>tv_year_intercepts <span class="ot">&lt;-</span> tv_params<span class="sc">$</span>par.fixed[<span class="fu">which</span>(tv_names <span class="sc">==</span> <span class="st">"alpha_j"</span>)]</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="co"># for sdmTMB, these are "b_j"</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>sdmTMB_params <span class="ot">&lt;-</span> m1<span class="fl">.2</span><span class="sc">$</span>sd_report</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>sdmTMB_names <span class="ot">&lt;-</span> <span class="fu">names</span>(sdmTMB_params<span class="sc">$</span>par.fixed)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>sdmTMB_year_intercepts <span class="ot">&lt;-</span> sdmTMB_params<span class="sc">$</span>par.fixed[<span class="fu">which</span>(sdmTMB_names <span class="sc">==</span> <span class="st">"b_j"</span>)]</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">tinyVAST_years =</span> tv_year_intercepts,</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>       <span class="at">sdmTMB_year =</span> sdmTMB_year_intercepts,</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>       <span class="at">year =</span> year_seq)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 10 × 3
+   tinyVAST_years sdmTMB_year  year
+            &lt;dbl&gt;       &lt;dbl&gt; &lt;int&gt;
+ 1         -0.178      -0.178  2014
+ 2         -0.822      -0.822  2015
+ 3         -1.62       -1.62   2016
+ 4         -1.12       -1.12   2017
+ 5         -1.29       -1.29   2018
+ 6         -1.87       -1.87   2019
+ 7         -2.06       -2.06   2021
+ 8         -2.03       -2.03   2022
+ 9         -1.89       -1.89   2023
+10         -1.38       -1.38   2024</code></pre>
+</div>
+</div>
+<p><code>tinyVAST</code> and <code>sdmTMB</code> differ slightly in reporting style: <code>sdmTMB</code> provides more “plain English” descriptions of estimated parameters, and <code>tinyVAST</code> gives you variable names as reported by TMB. Ultimately these models are equivalent as expected.</p>
+</section>
+<section id="spatial-random-field" class="level4">
+<h4 class="anchored" data-anchor-id="spatial-random-field">Spatial random field</h4>
+<p><code>theta_z</code>s contain your spatial interaction effects and spatial random field SDs</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">tinyvast_ssd =</span> tv_params<span class="sc">$</span>par.fixed[<span class="fu">which</span>(tv_names <span class="sc">==</span> <span class="st">"theta_z"</span>)],<span class="co"># tinyVAST spatial SD </span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>       <span class="at">sdmTMB_ssd =</span> sdmTMB_params<span class="sc">$</span>value[<span class="dv">1</span>])  <span class="co"># sdmTMB spatial SD</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 2
+  tinyvast_ssd sdmTMB_ssd
+         &lt;dbl&gt;      &lt;dbl&gt;
+1         2.84       2.84</code></pre>
+</div>
+</div>
+</section>
+<section id="spatiotemporal-random-field" class="level4">
+<h4 class="anchored" data-anchor-id="spatiotemporal-random-field">Spatiotemporal random field</h4>
+<p><code>beta_z</code>s contain spatiotemporal interaction effects and spatiotemporal random field SDs.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">tinyvast_st_sd =</span> tv_params<span class="sc">$</span>par.fixed[<span class="fu">which</span>(tv_names <span class="sc">==</span> <span class="st">"beta_z"</span>)],<span class="co"># tinyVAST spatial SD </span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>       <span class="at">sdmTMB_st_sd =</span> sdmTMB_params<span class="sc">$</span>value[<span class="dv">3</span>])  <span class="co"># sdmTMB spatial SD</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 2
+  tinyvast_st_sd sdmTMB_st_sd
+           &lt;dbl&gt;        &lt;dbl&gt;
+1           1.24         1.24</code></pre>
+</div>
+</div>
+</section>
+<section id="extend-the-model-to-model-ar1-and-random-walk-spatiotemporal-correlations" class="level4">
+<h4 class="anchored" data-anchor-id="extend-the-model-to-model-ar1-and-random-walk-spatiotemporal-correlations">Extend the model to model AR1 and random walk spatiotemporal correlations</h4>
+<p>We model a spatiotemporal correlation coefficient, rho, by specifying <code>hair_crab -&gt; hair_crab, 1, rho</code> in the <code>spacetime_term</code> arrow and lag notation.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>space_term <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab &lt;-&gt; hair_crab, sd_space</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>spacetime_term_ar1 <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab -&gt; hair_crab, 1, rho </span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab &lt;-&gt; hair_crab, 0, sd_spacetime</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co"># AR1------</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>m1_tv_ar1 <span class="ot">&lt;-</span> <span class="fu">tinyVAST</span>(</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_term =</span> space_term,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">spacetime_term =</span> spacetime_term_ar1,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> hair_cpue,</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year),</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">spatial_domain =</span> tinyVAST_mesh,</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">tweedie</span>(),</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">time_column =</span> <span class="st">"year"</span>,</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_columns =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">variable_column =</span> <span class="st">"var"</span>,</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">tinyVASTcontrol</span>(</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">use_anisotropy =</span> <span class="cn">TRUE</span></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>m1_tv_ar1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Call: 
+tinyVAST(formula = cpue ~ 0 + as.factor(year), data = hair_cpue, 
+    space_term = space_term, spacetime_term = spacetime_term_ar1, 
+    family = tweedie(), spatial_domain = tinyVAST_mesh, control = tinyVASTcontrol(use_anisotropy = TRUE), 
+    space_columns = c("longitude", "latitude"), time_column = "year", 
+    variable_column = "var")
+
+Run time: 
+Time difference of 52.35265 secs
+
+Family: 
+$obs
+
+Family: tweedie 
+Link function: log 
+
+
+
+
+sdreport(.) result
+              Estimate  Std. Error
+alpha_j    -0.06901777 0.587126962
+alpha_j    -0.88501010 0.599123439
+alpha_j    -1.53108802 0.623510189
+alpha_j    -1.15544857 0.605406131
+alpha_j    -1.32769199 0.615389778
+alpha_j    -1.92616861 0.647293159
+alpha_j    -2.17154574 0.674083873
+alpha_j    -2.27576082 0.693248618
+alpha_j    -2.15586282 0.701944465
+alpha_j    -1.68346380 0.722435190
+beta_z      0.70617863 0.312933061
+beta_z      1.18934450 0.183473441
+theta_z     2.76848455 0.390478442
+log_sigma   3.07743064 0.004152283
+log_sigma  -4.91488151 0.078316082
+log_kappa  -3.56306628 0.215596318
+ln_H_input -0.21669630 0.289385445
+ln_H_input -0.66812538 0.421912410
+Maximum gradient component: 0.0007167196 
+
+Proportion conditional deviance explained: 
+[1] 0.7548689
+
+space_term: 
+  heads        to      from parameter start Estimate Std_Error  z_value
+1     2 hair_crab hair_crab         1  &lt;NA&gt; 2.768485 0.3904784 7.089981
+       p_value
+1 1.341309e-12
+
+spacetime_term: 
+  heads        to      from parameter start lag  Estimate Std_Error  z_value
+1     1 hair_crab hair_crab         1  &lt;NA&gt;   1 0.7061786 0.3129331 2.256644
+2     2 hair_crab hair_crab         2  &lt;NA&gt;   0 1.1893445 0.1834734 6.482380
+       p_value
+1 2.403031e-02
+2 9.028708e-11
+
+Fixed terms: 
+                       Estimate Std_Error    z_value     p_value
+as.factor(year)2014 -0.06901777 0.5871270 -0.1175517 0.906422885
+as.factor(year)2015 -0.88501010 0.5991234 -1.4771749 0.139628764
+as.factor(year)2016 -1.53108802 0.6235102 -2.4555942 0.014065188
+as.factor(year)2017 -1.15544857 0.6054061 -1.9085511 0.056320019
+as.factor(year)2018 -1.32769199 0.6153898 -2.1574814 0.030968176
+as.factor(year)2019 -1.92616861 0.6472932 -2.9757284 0.002922936
+as.factor(year)2021 -2.17154574 0.6740839 -3.2214771 0.001275317
+as.factor(year)2022 -2.27576082 0.6932486 -3.2827484 0.001028004
+as.factor(year)2023 -2.15586282 0.7019445 -3.0712726 0.002131484
+as.factor(year)2024 -1.68346380 0.7224352 -2.3302627 0.019792269</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Random walk------</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>spacetime_term_rw <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="st">  hair_crab -&gt; hair_crab, 1, NA, 1 </span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>m1_tv_rw <span class="ot">&lt;-</span> <span class="fu">tinyVAST</span>(</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_term =</span> space_term,</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">spacetime_term =</span> spacetime_term_rw,</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> hair_cpue,</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> <span class="fu">as.factor</span>(year),</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">spatial_domain =</span> tinyVAST_mesh,</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">family =</span> <span class="fu">tweedie</span>(),</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">time_column =</span> <span class="st">"year"</span>,</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">space_columns =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">variable_column =</span> <span class="st">"var"</span>,</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">control =</span> <span class="fu">tinyVASTcontrol</span>(</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">use_anisotropy =</span> <span class="cn">TRUE</span></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>m1_tv_rw</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Call: 
+tinyVAST(formula = cpue ~ 0 + as.factor(year), data = hair_cpue, 
+    space_term = space_term, spacetime_term = spacetime_term_rw, 
+    family = tweedie(), spatial_domain = tinyVAST_mesh, control = tinyVASTcontrol(use_anisotropy = TRUE), 
+    space_columns = c("longitude", "latitude"), time_column = "year", 
+    variable_column = "var")
+
+Run time: 
+Time difference of 1.088017 mins
+
+Family: 
+$obs
+
+Family: tweedie 
+Link function: log 
+
+
+
+
+sdreport(.) result
+             Estimate  Std. Error
+alpha_j     0.1013600 0.580198386
+alpha_j    -0.7782199 0.598226024
+alpha_j    -1.4329661 0.628387577
+alpha_j    -1.2208347 0.632241583
+alpha_j    -1.4964347 0.654252040
+alpha_j    -2.1738873 0.697862628
+alpha_j    -2.6337703 0.753704516
+alpha_j    -2.8709228 0.781021036
+alpha_j    -2.8370506 0.814058250
+alpha_j    -2.5474106 0.844618218
+beta_z     -0.9833267 0.140465628
+theta_z     2.7311558 0.400018359
+log_sigma   3.0775508 0.004153511
+log_sigma  -4.9141978 0.078370220
+log_kappa  -3.5893562 0.233730552
+ln_H_input -0.2209034 0.298302000
+ln_H_input -0.6524612 0.431721251
+Maximum gradient component: 0.0006006619 
+
+Proportion conditional deviance explained: 
+[1] 0.7457454
+
+space_term: 
+  heads        to      from parameter start Estimate Std_Error  z_value
+1     2 hair_crab hair_crab         1  &lt;NA&gt; 2.731156 0.4000184 6.827576
+       p_value
+1 8.636134e-12
+
+spacetime_term: 
+  heads        to      from parameter start lag   Estimate Std_Error   z_value
+1     1 hair_crab hair_crab         0     1   1  1.0000000        NA        NA
+2     2 hair_crab hair_crab         1  &lt;NA&gt;   0 -0.9833267 0.1404656 -7.000479
+      p_value
+1          NA
+2 2.55088e-12
+
+Fixed terms: 
+                      Estimate Std_Error    z_value      p_value
+as.factor(year)2014  0.1013600 0.5801984  0.1746989 0.8613162612
+as.factor(year)2015 -0.7782199 0.5982260 -1.3008793 0.1932997642
+as.factor(year)2016 -1.4329661 0.6283876 -2.2803858 0.0225848191
+as.factor(year)2017 -1.2208347 0.6322416 -1.9309624 0.0534877048
+as.factor(year)2018 -1.4964347 0.6542520 -2.2872449 0.0221815303
+as.factor(year)2019 -2.1738873 0.6978626 -3.1150648 0.0018390453
+as.factor(year)2021 -2.6337703 0.7537045 -3.4944334 0.0004750690
+as.factor(year)2022 -2.8709228 0.7810210 -3.6758585 0.0002370509
+as.factor(year)2023 -2.8370506 0.8140582 -3.4850708 0.0004920068
+as.factor(year)2024 -2.5474106 0.8446182 -3.0160498 0.0025609118</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">AIC</span>(m1_tv, m1_tv_ar1, m1_tv_rw)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>          df      AIC
+m1_tv     17 3837.675
+m1_tv_ar1 18 3828.573
+m1_tv_rw  17 3831.275</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="generate-an-annual-index" class="level3">
+<h3 class="anchored" data-anchor-id="generate-an-annual-index">Generate an annual index</h3>
+<section id="generate-the-prediction-grid" class="level4">
+<h4 class="anchored" data-anchor-id="generate-the-prediction-grid">Generate the prediction grid</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># polygon for the EBS</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>cellsize <span class="ot">&lt;-</span> <span class="dv">20</span> <span class="co">#km x 20 km</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># polygon for the EBS</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>ebs_domain <span class="ot">&lt;-</span> </span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_read</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/SAP_layers.gdb"</span>),</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>        <span class="at">layer =</span> <span class="st">"EBS_grid"</span>,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>        <span class="at">quiet =</span> <span class="cn">TRUE</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_transform</span>(., ak_crs) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_union</span>()</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="co"># re-grid it to our spatial resolution</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>ebs_grid <span class="ot">&lt;-</span> ebs_domain <span class="sc">%&gt;%</span> </span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_make_grid</span>(., <span class="at">cellsize  =</span> cellsize) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_intersection</span>(., hair_loc_buffers) <span class="sc">%&gt;%</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(.),</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>         <span class="at">area =</span> <span class="fu">as.numeric</span>(<span class="fu">st_area</span>(.)))</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a><span class="co"># area vector to pass to integrate_output()</span></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>area_vec <span class="ot">&lt;-</span> ebs_grid<span class="sc">$</span>area</span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a><span class="co"># expand over time</span></span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a>pred_grid <span class="ot">&lt;-</span> ebs_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>  tidyr<span class="sc">::</span><span class="fu">expand_grid</span>(.,</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>                     <span class="at">year =</span> <span class="fu">min</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year))<span class="sc">:</span><span class="fu">max</span>(<span class="fu">unique</span>(hair_cpue<span class="sc">$</span>year))) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">!=</span> <span class="dv">2020</span>) <span class="co"># COVID year - no survey so should not be in final data</span></span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a><span class="co"># final outputs</span></span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>pred_df <span class="ot">&lt;-</span> pred_grid <span class="sc">%&gt;%</span> </span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb23-35"><a href="#cb23-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: st_centroid assumes attributes are constant over geometries</code></pre>
+</div>
+</div>
+</section>
+<section id="abundance-index-comparisons" class="level4">
+<h4 class="anchored" data-anchor-id="abundance-index-comparisons">Abundance index comparisons</h4>
+<p>The approach for generating abundance indices with <code>tinyVAST</code> is largely equivalent to <code>sdmTMB</code> using <code>tinyVAST::integrate_output()</code>. However, <code>tinyVAST</code> has additional options for weighting index calculations (using the <code>type</code> argument). We will use the default here that is equivalent to <code>sdmTMB</code>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Abundance index calculations-----</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="do">## IID tinyVAST-----</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>est_iid <span class="ot">&lt;-</span> <span class="fu">sapply</span>( year_seq ,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>   <span class="at">FUN=</span>\(t) <span class="fu">integrate_output</span>(m1_tv, <span class="at">newdata=</span><span class="fu">subset</span>(pred_df,year<span class="sc">==</span>t),</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>                             <span class="at">bias.correct =</span> <span class="cn">TRUE</span>, <span class="at">area =</span> area_vec) ) <span class="sc">%&gt;%</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">t</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">year =</span> year_seq) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="at">est =</span> Estimate,</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">se =</span> <span class="dv">2</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">lwr =</span> est <span class="sc">-</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>         <span class="at">upr =</span> est <span class="sc">+</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>         <span class="at">model =</span> <span class="st">"tinyVAST - iid"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(lwr, upr, model, year, est)</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a><span class="do">## AR1 tinyVAST-----</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>est_ar1 <span class="ot">&lt;-</span> <span class="fu">sapply</span>( year_seq ,</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>   <span class="at">FUN=</span>\(t) <span class="fu">integrate_output</span>(m1_tv_ar1, <span class="at">newdata=</span><span class="fu">subset</span>(pred_df,year<span class="sc">==</span>t),</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>                             <span class="at">bias.correct =</span> <span class="cn">TRUE</span>, <span class="at">area =</span> area_vec) ) <span class="sc">%&gt;%</span></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">t</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">year =</span> year_seq) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="at">est =</span> Estimate,</span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a>                <span class="at">se =</span> <span class="dv">2</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">lwr =</span> est <span class="sc">-</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>         <span class="at">upr =</span> est <span class="sc">+</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>         <span class="at">model =</span> <span class="st">"tinyVAST - AR1"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(lwr, upr, model, year, est)</span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a><span class="do">## RW tinyVAST-----</span></span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>est_rw <span class="ot">&lt;-</span> <span class="fu">sapply</span>( year_seq ,</span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>   <span class="at">FUN=</span>\(t) <span class="fu">integrate_output</span>(m1_tv_rw, <span class="at">newdata=</span><span class="fu">subset</span>(pred_df,year<span class="sc">==</span>t),</span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>                             <span class="at">bias.correct =</span> <span class="cn">TRUE</span>, <span class="at">area =</span> area_vec) ) <span class="sc">%&gt;%</span></span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">t</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">year =</span> year_seq) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="at">est =</span> Estimate,</span>
+<span id="cb25-39"><a href="#cb25-39" aria-hidden="true" tabindex="-1"></a>                <span class="at">se =</span> <span class="dv">2</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-40"><a href="#cb25-40" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">lwr =</span> est <span class="sc">-</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-41"><a href="#cb25-41" aria-hidden="true" tabindex="-1"></a>         <span class="at">upr =</span> est <span class="sc">+</span> <span class="fl">1.96</span> <span class="sc">*</span> se,</span>
+<span id="cb25-42"><a href="#cb25-42" aria-hidden="true" tabindex="-1"></a>         <span class="at">model =</span> <span class="st">"tinyVAST - RW"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-43"><a href="#cb25-43" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(lwr, upr, model, year, est)</span>
+<span id="cb25-44"><a href="#cb25-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-45"><a href="#cb25-45" aria-hidden="true" tabindex="-1"></a><span class="do">## IID sdmTMB-----</span></span>
+<span id="cb25-46"><a href="#cb25-46" aria-hidden="true" tabindex="-1"></a>model_predictions_df <span class="ot">&lt;-</span> <span class="fu">predict</span>(m1<span class="fl">.2</span>, <span class="at">newdata =</span> pred_df, <span class="at">type =</span> <span class="st">"link"</span>,</span>
+<span id="cb25-47"><a href="#cb25-47" aria-hidden="true" tabindex="-1"></a>                                <span class="at">return_tmb_object =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb25-48"><a href="#cb25-48" aria-hidden="true" tabindex="-1"></a>est_iid_sdmTMB <span class="ot">&lt;-</span> <span class="fu">get_index</span>(<span class="at">obj =</span> model_predictions_df, <span class="at">bias_correct =</span> <span class="cn">TRUE</span>, <span class="at">area =</span> pred_df<span class="sc">$</span>area) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-49"><a href="#cb25-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">model =</span> <span class="st">"sdmTMB - iid"</span>)</span>
+<span id="cb25-50"><a href="#cb25-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-51"><a href="#cb25-51" aria-hidden="true" tabindex="-1"></a><span class="do">## Design-based-----</span></span>
+<span id="cb25-52"><a href="#cb25-52" aria-hidden="true" tabindex="-1"></a>design_based_index <span class="ot">&lt;-</span> </span>
+<span id="cb25-53"><a href="#cb25-53" aria-hidden="true" tabindex="-1"></a>  hc_design_index_ebs <span class="sc">%&gt;%</span> </span>
+<span id="cb25-54"><a href="#cb25-54" aria-hidden="true" tabindex="-1"></a>    <span class="fu">rename_all</span>(str_to_lower) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-55"><a href="#cb25-55" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">lwr =</span> <span class="fu">ifelse</span>((abundance <span class="sc">-</span> abundance_ci) <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb25-56"><a href="#cb25-56" aria-hidden="true" tabindex="-1"></a>                                (abundance <span class="sc">-</span> abundance_ci)),</span>
+<span id="cb25-57"><a href="#cb25-57" aria-hidden="true" tabindex="-1"></a>           <span class="at">upr =</span> abundance <span class="sc">+</span> abundance_ci,</span>
+<span id="cb25-58"><a href="#cb25-58" aria-hidden="true" tabindex="-1"></a>           <span class="at">model =</span> <span class="st">"Design-based"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-59"><a href="#cb25-59" aria-hidden="true" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(year, </span>
+<span id="cb25-60"><a href="#cb25-60" aria-hidden="true" tabindex="-1"></a>                  <span class="at">est =</span> abundance,</span>
+<span id="cb25-61"><a href="#cb25-61" aria-hidden="true" tabindex="-1"></a>                  lwr,</span>
+<span id="cb25-62"><a href="#cb25-62" aria-hidden="true" tabindex="-1"></a>                  upr,</span>
+<span id="cb25-63"><a href="#cb25-63" aria-hidden="true" tabindex="-1"></a>                  model) <span class="sc">%&gt;%</span> </span>
+<span id="cb25-64"><a href="#cb25-64" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> <span class="dv">2014</span>)</span>
+<span id="cb25-65"><a href="#cb25-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-66"><a href="#cb25-66" aria-hidden="true" tabindex="-1"></a>combined_indices <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(</span>
+<span id="cb25-67"><a href="#cb25-67" aria-hidden="true" tabindex="-1"></a>  est_iid,</span>
+<span id="cb25-68"><a href="#cb25-68" aria-hidden="true" tabindex="-1"></a>  est_ar1,</span>
+<span id="cb25-69"><a href="#cb25-69" aria-hidden="true" tabindex="-1"></a>  est_rw,</span>
+<span id="cb25-70"><a href="#cb25-70" aria-hidden="true" tabindex="-1"></a>  est_iid_sdmTMB,</span>
+<span id="cb25-71"><a href="#cb25-71" aria-hidden="true" tabindex="-1"></a>  design_based_index</span>
+<span id="cb25-72"><a href="#cb25-72" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-73"><a href="#cb25-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-74"><a href="#cb25-74" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(combined_indices)<span class="sc">+</span></span>
+<span id="cb25-75"><a href="#cb25-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_errorbar</span>(<span class="fu">aes</span>(<span class="at">ymax =</span> upr, <span class="at">ymin =</span> lwr, </span>
+<span id="cb25-76"><a href="#cb25-76" aria-hidden="true" tabindex="-1"></a>                    <span class="at">x =</span> year, <span class="at">color =</span> model), <span class="at">width =</span> <span class="dv">0</span>) <span class="sc">+</span></span>
+<span id="cb25-77"><a href="#cb25-77" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="fu">aes</span>(<span class="at">y =</span> est, <span class="at">x =</span> year, <span class="at">color =</span> model)) <span class="sc">+</span></span>
+<span id="cb25-78"><a href="#cb25-78" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"Design-based vs. model-based hair crab abundance indices"</span>,</span>
+<span id="cb25-79"><a href="#cb25-79" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Abundance"</span>,</span>
+<span id="cb25-80"><a href="#cb25-80" aria-hidden="true" tabindex="-1"></a>       <span class="at">x =</span> <span class="st">"Year"</span>) <span class="sc">+</span></span>
+<span id="cb25-81"><a href="#cb25-81" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span></span>
+<span id="cb25-82"><a href="#cb25-82" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.title =</span> <span class="fu">element_blank</span>(),</span>
+<span id="cb25-83"><a href="#cb25-83" aria-hidden="true" tabindex="-1"></a>        <span class="at">legend.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb25-84"><a href="#cb25-84" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title =</span>  <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">12</span>),</span>
+<span id="cb25-85"><a href="#cb25-85" aria-hidden="true" tabindex="-1"></a>        <span class="at">title  =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">14</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="tinyVAST_vast_model_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="bivariate-vector-autoregressive-model" class="level3">
+<h3 class="anchored" data-anchor-id="bivariate-vector-autoregressive-model">Bivariate vector autoregressive model</h3>
+<p>A defining feature of <code>tinyVAST</code> is the ability to fit multivariate vector autoregressive models, where response variables are relate via cross-lagged effects.</p>
+<p>In this example, we will fit a bivariate vector autoregressive spatiotemporal model evaluating cross-lagged effects of male hair crab density on female hair crab density, and vice versa.</p>
+<section id="data-processing" class="level4">
+<h4 class="anchored" data-anchor-id="data-processing">Data processing</h4>
+<p>To begin, we repeat the same data processing workflow but now consider both male and female CPUE. Importantly, we arrange the data in long format, so that the <code>var</code> variable demarcates male and female CPUE groupings.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>start_year <span class="ot">&lt;-</span> <span class="dv">2010</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># combine male and female data and convert to sf</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>hair_cpue_sf_mf <span class="ot">&lt;-</span> </span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  hair_cpue_sf_all <span class="sc">%&gt;%</span> </span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(., hair_cpue_female <span class="sc">%&gt;%</span> </span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>              <span class="fu">st_as_sf</span>(., <span class="at">coords =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>), <span class="at">crs =</span> <span class="dv">4326</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>              <span class="fu">st_transform</span>(ak_crs)) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="at">var =</span> category) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">&gt;=</span> start_year)</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co"># create buffer around positive catches to drop false zeros before fitting model</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>hair_loc_buffers_mf <span class="ot">&lt;-</span> hair_cpue_sf_mf <span class="sc">%&gt;%</span> <span class="co"># across all trawls</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(cpue <span class="sc">&gt;</span> <span class="dv">0</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>  concaveman<span class="sc">::</span><span class="fu">concaveman</span>(., <span class="at">concavity =</span> <span class="dv">3</span>) <span class="sc">%&gt;%</span> <span class="co">#Draw concave hull around positive catches</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_buffer</span>(., <span class="at">dist =</span> <span class="dv">45</span>) <span class="sc">%&gt;%</span>  <span class="co"># extend buffer</span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_difference</span>(ak_land) <span class="co">#remove sections of polygon intersecting land</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="co"># intersect CPUE observations with buffer object</span></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>hair_cpue_mf <span class="ot">&lt;-</span> hair_cpue_sf_mf <span class="sc">%&gt;%</span></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">district =</span> <span class="fu">ifelse</span>(district <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"ALL"</span>, <span class="st">"NORTH"</span>), </span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>                           <span class="st">"N. EBS/NBS"</span>,</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>                           district)) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_intersection</span>(., hair_loc_buffers_mf) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>, <span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: attribute variables are assumed to be spatially constant throughout
+all geometries</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># define new mesh</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>tinyVAST_mesh2 <span class="ot">&lt;-</span> sdmTMB<span class="sc">::</span><span class="fu">make_mesh</span>(hair_cpue_mf,</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">xy_cols =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">type =</span> <span class="st">"kmeans"</span>,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>                                    <span class="at">n_knots =</span> <span class="dv">150</span>)<span class="sc">$</span>mesh</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> hair_loc_buffers_mf, <span class="at">fill =</span> <span class="st">"lightblue"</span>) <span class="sc">+</span> <span class="co"># buffer region</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> hair_cpue_sf_mf, <span class="at">color =</span> <span class="st">"grey"</span>) <span class="sc">+</span> <span class="co"># all observations</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> hair_cpue_mf <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cpue <span class="sc">==</span> <span class="dv">0</span>), <span class="fu">aes</span>(<span class="at">x =</span> longitude,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>                                                             <span class="at">y =</span> latitude), <span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> hair_cpue_mf  <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cpue <span class="sc">&gt;</span> <span class="dv">0</span>), <span class="fu">aes</span>(<span class="at">x =</span> longitude,</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>                                                             <span class="at">y =</span> latitude)) <span class="sc">+</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span>var)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="tinyVAST_vast_model_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="fitting-the-model" class="level4">
+<h4 class="anchored" data-anchor-id="fitting-the-model">Fitting the model</h4>
+<p>Here we specify that we want to model the effects of lag-1 male and female hair crab density on densities at time <em>t</em> We also model the cross-lagged effect of lag-1 mature female crab density on legal male density, and lag-1 mature male crab density on female crab density. Lastly, we specify an iid spatiotemporal random field component for each sex. For the sake of runtime, we exclude the spatial random field and anisotropy from the model.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>spacetime_term_vast <span class="ot">&lt;-</span> <span class="st">"</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="st">  # autoregressive effects</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="st">  legal_male -&gt; legal_male, 1, b11</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="st">  mature_female -&gt; mature_female, 1, b22</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="st">  </span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="st">  # cross lagged effects</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="st">  mature_female -&gt; legal_male, 1, b21</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="st">  legal_male -&gt; mature_female, 1, b12</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="st">  </span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="st">  # spatiotemporal variances (seperate)</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="st">  legal_male &lt;-&gt; legal_male, 0, sd_spacetime1</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="st">  mature_female &lt;-&gt; mature_female, 0, sd_spacetime2</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a><span class="st">"</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>process <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># fit model</span></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>  m2_tv <span class="ot">&lt;-</span> <span class="fu">tinyVAST</span>(</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>             <span class="at">spacetime_term =</span> spacetime_term_vast,</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>             <span class="at">data =</span> hair_cpue_mf,</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>             <span class="at">time_column =</span> <span class="st">"year"</span>,</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>             <span class="at">space_columns =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>             <span class="at">variable_column =</span> <span class="st">"var"</span>,</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>             <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> var,</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>             <span class="at">spatial_domain =</span> tinyVAST_mesh2,</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a>             <span class="at">family =</span> <span class="fu">tweedie</span>() )</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(m2_tv, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/tinyVAST_m2.rdata"</span>))</span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/tinyVAST_m2.rdata"</span>))</span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="generating-the-prediction-grid" class="level4">
+<h4 class="anchored" data-anchor-id="generating-the-prediction-grid">Generating the prediction grid</h4>
+<p>We will use a slightly different prediction grid than before, but with the same spatial resolution. In this case, we intersect the grid with the male/female buffer instead of the male only buffer. We also additionally expand the prediction grid by a <code>var</code> variable indicating “legal_male” or “mature_female” crab CPUE.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># create EBS grid for male/female crab</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>ebs_grid_mf <span class="ot">&lt;-</span> ebs_domain <span class="sc">%&gt;%</span> </span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_make_grid</span>(., <span class="at">cellsize  =</span> cellsize) <span class="sc">%&gt;%</span> </span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_intersection</span>(., hair_loc_buffers_mf) <span class="sc">%&gt;%</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(.),</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">area =</span> <span class="fu">as.numeric</span>(<span class="fu">st_area</span>(.)))</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="co"># area vector to pass to integrate_output()</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>area_vec_mf <span class="ot">&lt;-</span> ebs_grid_mf<span class="sc">$</span>area</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="co"># expand over time</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>pred_grid_mf <span class="ot">&lt;-</span> ebs_grid_mf <span class="sc">%&gt;%</span> </span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>  tidyr<span class="sc">::</span><span class="fu">expand_grid</span>(.,</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>                     <span class="at">year =</span> <span class="fu">min</span>(<span class="fu">unique</span>(hair_cpue_mf<span class="sc">$</span>year))<span class="sc">:</span><span class="fu">max</span>(<span class="fu">unique</span>(hair_cpue_mf<span class="sc">$</span>year)),</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>                     <span class="at">var =</span> <span class="fu">c</span>(<span class="st">"legal_male"</span>, <span class="st">"mature_female"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_as_sf</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(year <span class="sc">!=</span> <span class="dv">2020</span>) <span class="co"># COVID year - no survey so should not be in final data</span></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a><span class="co"># final outputs</span></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>pred_df_mf <span class="ot">&lt;-</span> pred_grid_mf <span class="sc">%&gt;%</span> </span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sfc_as_cols</span>(., <span class="at">names =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">st_set_geometry</span>(<span class="cn">NULL</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: st_centroid assumes attributes are constant over geometries</code></pre>
+</div>
+</div>
+</section>
+<section id="predicting-from-the-model" class="level4">
+<h4 class="anchored" data-anchor-id="predicting-from-the-model">Predicting from the model</h4>
+<p>Predicting from <code>tinyVAST</code> models is similar to predicting from <code>mgcv</code> models. Where <code>sdmTMB</code> returned a <code>tibble</code>, <code>tinyVAST</code> returns a list of vectors. Predict from the model with <code>se.fit = FALSE</code> if you need to move quickly.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  m2_tv_predictions <span class="ot">&lt;-</span> <span class="fu">predict</span>(m2_tv, </span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>                          <span class="at">newdata =</span> pred_df_mf, <span class="at">se.fit =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(m2_tv_predictions, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/vast_model_predictions.rdata"</span>))</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/vast_model_predictions.rdata"</span>)) </span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>m2_tv_predictions_df <span class="ot">&lt;-</span> pred_df_mf <span class="sc">%&gt;%</span> </span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">est_tv =</span> m2_tv_predictions<span class="sc">$</span>fit,</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>         <span class="at">se_tv =</span> m2_tv_predictions<span class="sc">$</span>se.fit)</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>model_predictions_sf_mf <span class="ot">&lt;-</span> pred_grid_mf <span class="sc">%&gt;%</span> </span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(., m2_tv_predictions_df, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">"id"</span>,<span class="st">"year"</span>,<span class="st">"var"</span>)) </span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>ystart <span class="ot">&lt;-</span> <span class="dv">2011</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>yend <span class="ot">&lt;-</span> <span class="dv">2015</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> ak_land, <span class="at">fill =</span> <span class="st">"darkgreen"</span>, <span class="at">alpha =</span> <span class="fl">0.75</span>) <span class="sc">+</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_sf</span>(<span class="at">data =</span> model_predictions_sf_mf <span class="sc">%&gt;%</span> </span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>            <span class="fu">filter</span>(<span class="fu">between</span>(year, ystart, yend)), <span class="fu">aes</span>(<span class="at">fill =</span> <span class="fu">log</span>(est_tv),</span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>                                                     <span class="at">color =</span> <span class="fu">log</span>(est_tv))) <span class="sc">+</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> hair_cpue_mf <span class="sc">%&gt;%</span> <span class="fu">filter</span>(cpue <span class="sc">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a>                                              <span class="fu">between</span>(year, ystart, yend)),</span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>          <span class="fu">aes</span>(<span class="at">x =</span> longitude, <span class="at">y =</span> latitude,</span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a>              <span class="at">size =</span> <span class="fu">log</span>(cpue)), <span class="at">color =</span> <span class="st">"red"</span>, <span class="at">alpha =</span> <span class="fl">0.25</span>) <span class="sc">+</span></span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_gradient2</span>(<span class="at">low =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"red"</span>),</span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a>                       <span class="at">high =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"blue"</span>))<span class="sc">+</span></span>
+<span id="cb32-29"><a href="#cb32-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_gradient2</span>(<span class="at">low =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"red"</span>),</span>
+<span id="cb32-30"><a href="#cb32-30" aria-hidden="true" tabindex="-1"></a>                       <span class="at">high =</span> scales<span class="sc">::</span><span class="fu">muted</span>(<span class="st">"blue"</span>))<span class="sc">+</span></span>
+<span id="cb32-31"><a href="#cb32-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">guides</span>(<span class="at">color =</span> <span class="st">"none"</span>) <span class="sc">+</span></span>
+<span id="cb32-32"><a href="#cb32-32" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">fill =</span> <span class="st">"Predicted log(CPUE)"</span>,</span>
+<span id="cb32-33"><a href="#cb32-33" aria-hidden="true" tabindex="-1"></a>       <span class="at">size =</span> <span class="st">"Observed log(CPUE&gt;0)"</span>) <span class="sc">+</span></span>
+<span id="cb32-34"><a href="#cb32-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span> </span>
+<span id="cb32-35"><a href="#cb32-35" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_sf</span>(<span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">650</span>, <span class="dv">1500</span>),</span>
+<span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a>         <span class="at">xlim =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">1300</span>, <span class="sc">-</span><span class="dv">175</span>)) <span class="sc">+</span></span>
+<span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(year <span class="sc">~</span> var) <span class="sc">+</span></span>
+<span id="cb32-38"><a href="#cb32-38" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"bottom"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="tinyVAST_vast_model_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" width="816"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="dharma-residuals" class="level4">
+<h4 class="anchored" data-anchor-id="dharma-residuals">DHARMa residuals</h4>
+<p><code>tinyVAST</code> currently has functionality to visualize <code>DHARMa</code> residuals associated with fitted models (in addition to deviance and response residuals via <code>residuals()</code>). These tend to break on my machine when rendering the document so I save/load them here.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  new_data <span class="ot">&lt;-</span> <span class="fu">simulate</span>(m2_tv, <span class="at">nsim =</span> <span class="dv">100</span>,<span class="at">type =</span> <span class="st">"mle-mvn"</span>)</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(new_data, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m2_tv_dharma_sims.rdata"</span>))</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/m2_tv_dharma_sims.rdata"</span>))</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>fitted <span class="ot">&lt;-</span> <span class="fu">predict</span>(m2_tv)</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>res <span class="ot">=</span> DHARMa<span class="sc">::</span><span class="fu">createDHARMa</span>( <span class="at">simulatedResponse =</span> new_data, </span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>                            <span class="at">observedResponse =</span> hair_cpue_mf<span class="sc">$</span>cpue, </span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>                            <span class="at">fittedPredictedResponse =</span> fitted )</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(res)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="multiple-response-distributions" class="level3">
+<h3 class="anchored" data-anchor-id="multiple-response-distributions">Multiple response distributions</h3>
+<p>Lastly, we extend our bivariate VAST model by treating male and female hair crab CPUE as being drawn from distinct Tweedie distributions. The model takes ~ 8 minutes to run on my machine, and it throws errors when checked using the <code>sanity_tv</code> function. Regardless, the Tweedie parameters, reported as <code>log_sigma</code> in the outputs, are virtually equivalent for male and female observations.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>fam_list <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a> <span class="at">legal_male =</span> <span class="fu">tweedie</span>(),</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a> <span class="at">mature_female =</span> <span class="fu">tweedie</span>()</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (process){</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>  fam_list <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">legal_male =</span> <span class="fu">tweedie</span>(),</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">mature_female =</span> <span class="fu">tweedie</span>()</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>  m3_tv <span class="ot">&lt;-</span> <span class="fu">tinyVAST</span>(</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>           <span class="at">spacetime_term =</span> spacetime_term_vast,</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>           <span class="at">data =</span> hair_cpue_mf,</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>           <span class="at">time_column =</span> <span class="st">"year"</span>,</span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>           <span class="at">space_columns =</span> <span class="fu">c</span>(<span class="st">"longitude"</span>,<span class="st">"latitude"</span>),</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a>           <span class="at">variable_column =</span> <span class="st">"var"</span>,</span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>           <span class="at">distribution_column =</span> <span class="st">"var"</span>,  <span class="co"># must be supplied with &gt;1 family arg</span></span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>           <span class="at">formula =</span> cpue <span class="sc">~</span> <span class="dv">0</span> <span class="sc">+</span> var,</span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>           <span class="at">spatial_domain =</span> tinyVAST_mesh2,</span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>           <span class="at">family =</span> fam_list )</span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">save</span>(m3_tv, <span class="at">file =</span> here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/diff_tweeds.rdata"</span>))</span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">load</span>(here<span class="sc">::</span><span class="fu">here</span>(<span class="st">"data/diff_tweeds.rdata"</span>))</span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
