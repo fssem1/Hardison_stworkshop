@@ -45,190 +45,187 @@ spacetime_term_ar1 <- "
   hair_crab <-> hair_crab, 0, sd_spacetime
 "
 
-# AR1------
-m1_tv_ar1 <- tinyVAST(
-  space_term = space_term,
-  spacetime_term = spacetime_term_ar1,
-  data = hair_cpue,
-  formula = cpue ~ 1,
-  spatial_domain = tinyVAST_mesh,
-  family = tweedie(),
-  time_column = "year",
-  space_columns = c("longitude","latitude"),
-  variable_column = "var",
-  control = tinyVASTcontrol(
-    use_anisotropy = TRUE
-  )
-)
-m1_tv_ar1
-
-
-# Random walk------
-spacetime_term_rw <- "
-  hair_crab -> hair_crab, 1, NA, 1 
-"
-
-m1_tv_rw <- tinyVAST(
-  space_term = space_term,
-  spacetime_term = spacetime_term_rw,
-  data = hair_cpue,
-  formula = cpue ~ 1,
-  spatial_domain = tinyVAST_mesh,
-  family = tweedie(),
-  time_column = "year",
-  space_columns = c("longitude","latitude"),
-  variable_column = "var",
-  control = tinyVASTcontrol(
-    use_anisotropy = TRUE
-  )
-)
-
-# prediction grid
-# polygon for the EBS
-cellsize <- 20 #km x 20 km
-
-# polygon for the EBS
-ebs_domain <- 
-  st_read(here::here("data/SAP_layers.gdb"),
-          layer = "EBS_grid",
-          quiet = TRUE) %>% 
-  st_transform(., ak_crs) %>% 
-  st_union()
-
-# re-grid it to our spatial resolution
-ebs_grid <- ebs_domain %>% 
-  st_make_grid(., cellsize  = cellsize) %>% 
-  st_intersection(., hair_loc_buffers) %>%
-  st_as_sf() %>% 
-  mutate(id = 1:nrow(.),
-         area = as.numeric(st_area(.)))
-
-# area vector to pass to integrate_output()
-area_vec <- ebs_grid$area
-
-# expand over time
-pred_grid <- ebs_grid %>% 
-  tidyr::expand_grid(.,
-                     year = 2025:2030) %>% 
-  st_as_sf() %>% 
-  filter(year != 2020) # COVID year - no survey so should not be in final data
-
-# final outputs
-year_seq <- 2025:2030
-pred_df <- pred_grid %>% 
-  st_centroid() %>% 
-  sfc_as_cols(., names = c("longitude","latitude")) %>% 
-  st_set_geometry(NULL) %>% 
-  as.data.frame()%>% 
-  filter(year %in% year_seq)
-
-pred_df$projection_ar1 <-
-  tinyVAST::project(object = m1_tv_ar1,
-                    extra_times = year_seq,
-                    newdata = pred_df)
-
-pred_df$projection_rw <-
-  tinyVAST::project(object = m1_tv_rw,
-                    extra_times = year_seq,
-                    newdata = pred_df)
-
-obj_ts <-
-  pred_df %>%
-    group_by(year)%>% 
-  dplyr::summarize(projection_rw_ind = sum(projection_rw = 400),
-                   projection_ar1_ind = sum(projection_ar1 = 400))
-
-
-# Bivariate vector autoregressive model
 start_year <- 2010
 
+end_year <- 2023
+
 # combine male and female data and convert to sf
+
 hair_cpue_sf_mf <- 
+  
   hair_cpue_sf_all %>% 
+  
   bind_rows(., hair_cpue_female %>% 
-              st_as_sf(., coords = c("longitude", "latitude"), crs = 4326) %>% 
+              
+              st_as_sf(., coords = c("longitude", "latitude"), 
+                       
+                       crs = 4326) %>% 
+              
               st_transform(ak_crs)) %>% 
+  
   dplyr::rename(var = category) %>% 
-  filter(year >= start_year)
+  
+  filter(between(year, start_year, end_year))
 
 # create buffer around positive catches to drop false zeros before fitting model
+
 hair_loc_buffers_mf <- hair_cpue_sf_mf %>% # across all trawls
+  
   filter(cpue > 0) %>% 
+  
   concaveman::concaveman(., concavity = 3) %>% #Draw concave hull around positive catches
+  
   st_buffer(., dist = 45) %>%  # extend buffer
+  
   st_difference(ak_land) #remove sections of polygon intersecting land
 
 # intersect CPUE observations with buffer object
+
 hair_cpue_mf <- hair_cpue_sf_mf %>%
+  
   mutate(district = ifelse(district %in% c("ALL", "NORTH"), 
+                           
                            "N. EBS/NBS",
+                           
                            district)) %>% 
+  
   st_intersection(., hair_loc_buffers_mf) %>% 
+  
   sfc_as_cols(., names = c("longitude", "latitude")) %>% 
+  
   st_set_geometry(NULL) %>% 
+  
   as.data.frame()
 
 # define new mesh
+
 tinyVAST_mesh2 <- sdmTMB::make_mesh(hair_cpue_mf,
+                                    
                                     xy_cols = c("longitude","latitude"),
+                                    
                                     type = "kmeans",
+                                    
                                     n_knots = 150)$mesh
 
-ggplot() +
-  geom_sf(data = hair_loc_buffers_mf, fill = "lightblue") + # buffer region
-  geom_sf(data = hair_cpue_sf_mf, color = "grey") + # all observations
-  geom_point(data = hair_cpue_mf %>% filter(cpue == 0), aes(x = longitude,
-                                                            y = latitude), color = "red") +
-  geom_point(data = hair_cpue_mf  %>% filter(cpue > 0), aes(x = longitude,
-                                                            y = latitude)) +
-  facet_wrap(~var)
-
-# Fitting the model
 spacetime_term_vast <- "
+
   # autoregressive effects
+
   legal_male -> legal_male, 1, b11
+
   mature_female -> mature_female, 1, b22
-  
+
   # cross lagged effects
+
   mature_female -> legal_male, 1, b21
+
   legal_male -> mature_female, 1, b12
-  
+
   # spatiotemporal variances (seperate)
+
   legal_male <-> legal_male, 0, sd_spacetime1
+
   mature_female <-> mature_female, 0, sd_spacetime2
+
 "
 
-  # fit model
-  m2_tv <- tinyVAST(
-    spacetime_term = spacetime_term_vast,
-    data = hair_cpue_mf,
-    time_column = "year",
-    space_columns = c("longitude","latitude"),
-    variable_column = "var",
-    formula = cpue ~ 0 + var,
-    spatial_domain = tinyVAST_mesh2,
-    family = tweedie() )
+# fit model
+
+m2_tv <- tinyVAST(
   
-  # Fitting the model
-  spacetime_term_vast2 <- "
+  spacetime_term = spacetime_term_vast,
+  
+  data = hair_cpue_mf,
+  
+  time_column = "year",
+  
+  space_columns = c("longitude","latitude"),
+  
+  variable_column = "var",
+  
+  formula = cpue ~ 0 + var,
+  
+  spatial_domain = tinyVAST_mesh2,
+  
+  family = tweedie() )
+
+
+spacetime_term_vast2 <- "
+
   # autoregressive effects
+
   legal_male -> legal_male, 1, b11
 
   # spatiotemporal variances (seperate)
+
   legal_male <-> legal_male, 0, sd_spacetime1
+
 "
+
+hair_cpue_male <- hair_cpue_mf %>% filter(var == "legal_male")
+
+m3_tv <- tinyVAST(
   
-hair_cpue_male<-hair_cpue_mf %>% filter(var=="legal_male")
+  spacetime_term = spacetime_term_vast2,
+  
+  data = hair_cpue_male,
+  
+  time_column = "year",
+  
+  space_columns = c("longitude","latitude"),
+  
+  variable_column = "var",
+  
+  formula = cpue ~ 1,
+  
+  spatial_domain = tinyVAST_mesh2,
+  
+  family = tweedie() ,
+  
+  control = tinyVASTcontrol(trace = getOption("tinyVAST.trace", 1),
+                            
+                            silent = getOption("tinyVAST.silent", F)))
 
+# get M/F CPUE data for 2024
 
-  m3_tv <- tinyVAST(
-    spacetime_term = spacetime_term_vast2,
-    data = hair_cpue_male,
-    time_column = "year",
-    space_columns = c("longitude","latitude"),
-    variable_column = "var",
-    formula = cpue ~ 1,
-    spatial_domain = tinyVAST_mesh2,
-    family = tweedie(),
-    control = tinyVASTcontrol(trace = getOption("tinyVAST.trace",1),
-                              silent = getOption("tinyVAST.silent", F))) 
+hair_cpue_mf_2024 <- 
+  
+  hair_cpue_sf_all %>% 
+  
+  bind_rows(., hair_cpue_female %>% 
+              
+              st_as_sf(., coords = c("longitude", 
+                                     
+                                     "latitude"), crs = 4326) %>% 
+              
+              st_transform(ak_crs)) %>% 
+  
+  dplyr::rename(var = category) %>% 
+  
+  filter(year == 2024) %>% 
+  
+  sfc_as_cols(., names = c("longitude","latitude")) %>% 
+  
+  st_set_geometry(NULL) %>% 
+  
+  as.data.frame()
+
+# get male only CPUE data for 2024
+
+hair_cpue_m_2024 <- hair_cpue_mf_2024 %>% 
+  
+  filter(var == "legal_male")
+
+extra_time <- 2024
+
+hair_cpue_mf_2024$projection <- project(m2_tv, 
+                                        
+                                        newdata = hair_cpue_mf_2024,
+                                        
+                                        extra_times = extra_time)
+
+hair_cpue_m_2024$projection <- project(m3_tv, 
+                                       
+                                       newdata = hair_cpue_m_2024,
+                                       
+                                       extra_times = extra_time)
